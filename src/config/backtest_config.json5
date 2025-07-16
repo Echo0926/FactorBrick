@@ -1,0 +1,42 @@
+{
+  // Basic Config
+  "data_type": "dataframe",   // [optional] dataframe/dolphindb
+  "start_date": "20220101",
+  "end_date": "20250505",
+  "strategy_name": "strategy_demo",
+  "cash": 10000000,
+  "seed": 666,
+  run_stock: true, // 策略中是否包含股票/ETF标的
+  run_future: false, // 策略中是否包含期货标的
+  run_option: false, // 策略中是否包含期权标的
+
+  // STOCK DATABASE
+  stock_K_database: "E:\\factorbrick\\data\\backtest\\stock_cn\\k_data", // 原始K线数据
+  stock_K_table: "data",
+  stock_counter_json: "E:\\factorbrick\\data\\backtest\\stock_cn\\k_json",    // K线数据解压目录
+  stock_signal_database: "E:\\factorbrick\\data\\backtest\\stock_cn\\signal",
+  stock_signal_table: "signal",
+  stock_signal_json: "E:\\factorbrick\\data\\backtest\\stock_cn\\signal_json",
+  stock_info_json: "E:\\factorbrick\\data\\backtest\\stock_cn\\info_json",  // 股票属性解压目录
+  stock_macro_json: "E:\\factorbrick\\data\\backtest\\stock_cn\\macro_json",
+
+  // FUTURE DATABASE
+  future_K_database:"E:\\factorbrick\\data\\backtest\\future_cn\\k_data", // 原始K线数据
+  future_K_table: "data",
+  future_counter_json: "E:\\factorbrick\\data\\backtest\\future_cn\\k_json",   // K线数据解压save目录
+  future_signal_database: "E:\\factorbrick\\data\\backtest\\future_cn\\signal",
+  future_signal_table: "signal",
+  future_signal_json: "E:\\factorbrick\\data\\backtest\\future_cn\\signal_json",
+  future_info_json: "E:\\factorbrick\\data\\backtest\\future_cn\\info_json",   // 期货合约属性save目录
+  future_macro_json: "E:\\factorbrick\\data\\backtest\\future_cn\\macro_json",
+
+  // OPTION DATABASE
+  option_K_database:"E:\\factorbrick\\data\\backtest\\option_cn\\k_data", // 原始K线数据
+  option_K_table: "data",
+  option_counter_json: "E:\\factorbrick\\data\\backtest\\option_cn\\k_json",   // K线数据解压save目录
+  option_signal_database: "E:\\factorbrick\\data\\backtest\\option_cn\\signal",
+  option_signal_table: "signal",
+  option_signal_json: "E:\\factorbrick\\data\\backtest\\option_cn\\signal_json",
+  option_info_json: "E:\\factorbrick\\data\\backtest\\option_cn\\info_json",   // 期权合约属性save目录
+  option_macro_json: "E:\\factorbrick\\data\\backtest\\option_cn\\macro_json"
+}
