@@ -175,6 +175,8 @@ class ReturnModel_Data:
             // 分钟频截面因子(待补充)
             dropColumns!(pt,["open","high","low","close","volume","turnover","vwap"])
             
+            // zscore
+            
             // 截面空缺值填充
             for (col in {self.factor_list}){{
                 pt[`draft] = pt[col]

@@ -4,8 +4,8 @@
   "end_date": "20241201",
   "posPeriod": 1,
   "callBackPeriod": 30,
-  "data_path": "D:\\DolphinDB\\Project\\ReturnModel\\data",
-  "src_path": "D:\\DolphinDB\\Project\\ReturnModel\\src",
+  "data_path": "D:\\DolphinDB\\Project\\FactorBrick\\data",
+  "src_path": "D:\\DolphinDB\\Project\\FactorBrick\\src",
 
   // K BAR DATABASE
   "symbol_database": "dfs://asset_cn/ReturnModel",
@@ -61,7 +61,7 @@
   // Model DataBase
   model_database: "dfs://asset_cn/ReturnModel_MLModel_20250710",   // 模型预测收益率保存路径
   Model_list: ["xgboost","lightgbm"],//["lightgbm","gbdt"], // 所选模型(详见model_config+pipeline中的mapping_dict)
-  Model_save_path: "D:\\DolphinDB\\Project\\ReturnModel\\model",
+  Model_save_path: "D:\\DolphinDB\\Project\\FactorBrick\\model",
 
   // OPTIMIZE DATABASE
   SingleReturn_add: true,  // 新增: 单因子收益率是否添加入组合优化表

@@ -19,22 +19,22 @@ def get_stock_signal_to_dataframe(session, BackTest_config: Dict, ReturnModel_co
     # Step2.生成信号并存储到数据库中
     res_signal = session.run(rf"""
         // config
-       start_ts, end_ts = {start_dot_date},temporalAdd({end_dot_date},1,"XSHG");
+       start_ts, end_ts = {start_dot_date},temporalAdd({end_dot_date}stock_cn/value","market_hfq") where date between start_ts and end_ts;
+       update k_data set minute = 15,1,"XSHG");
        estimation_method = "Ridge";
        init_period = 2; // 因子模型初始化period周期长度, 与returnModel保持一致
         
         // 行情数据
-       k_data = select * from loadTable("dfs://stock_cn/value","market_hfq") where date between start_ts and end_ts;
-       update k_data set minute = 1500;
+       k_data = select * from loadTable("dfs://00;
        update k_data set timestamp = datetime(string(date)+"T15:00:00"); 
         
        // 预期收益率数据
-       r_data = select symbol,period,turnoverrate_return_pred as return_pred from loadTable("dfs://asset_cn/ReturnModel_result_20250505","individual_return");
+       // r_data = select symbol,period,turnoverrate_return_pred as return_pred from loadTable("dfs://asset_cn/ReturnModel_result_20250505","individual_return");
        template_pt = select symbol,start_date as date,period from loadTable("dfs://asset_cn/ReturnModel_20250505","template_individual");
        r_data = select * from r_data left join template_pt on template_pt.period = r_data.period;
-       // r_data = select date,minute,symbol,lightgbm_return_pred as return_pred from loadTable("dfs://asset_cn/ReturnModel_MLModel_20250505","ModelIndividual_return");
+       r_data = select date,minute,symbol,xgboost_return_pred as return_pred from loadTable("dfs://asset_cn/ReturnModel_MLModel_20250710","ModelIndividual_return");
        r_data = select firstNot(return_pred) as return_pred from r_data group by date,symbol;
-        
+    
        // 生成日频信号
        r_data[`daily_long_signal] = 0.0;
        r_data[`daily_short_signal] = 0.0;

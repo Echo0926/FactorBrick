@@ -616,7 +616,7 @@ class ReturnModel_Backtest:
         if (int({int(self.SingleFactor_estimation)})==1){{  // 说明需要进行单因子测试  
             for (benchmark_str in {self.benchmark_list}){{
                 summary_func = Summary_mr{{,benchmark_str}}; // DolphinDB函数部分应用
-                total_res = peach(peach(summary_func,period_list));
+                total_res = peach(summary_func,period_list);
             }}
             loadTable('{self.result_database}','{self.summary_table}').append!(total_res);
             undef(`total_res);
@@ -727,7 +727,7 @@ class ReturnModel_Backtest:
         }}
         for (benchmark_str in {self.benchmark_list}){{
             multisummary_func = MultiSummary_mr{{,benchmark_str}}; // DolphinDB函数部分应用
-            total_res = peach(peach(multisummary_func,period_list));
+            total_res = peach(multisummary_func,period_list);
             // 格式调整!!
             total_res=select benchmark_str as Benchmark,period,class,indicator,value from total_res order by Benchmark,period;
             loadTable('{self.result_database}','{self.Multisummary_table}').append!(total_res);
@@ -1052,7 +1052,7 @@ if __name__=="__main__":
         FactorR_predictFunc=FactorR_pred,
         FactorIC_predictFunc=FactorIC_pred,
         MultiFactorR_predictFunc=MultiFactorR_pred,
-        ModelR_predictFunc=ModelBackTest_20250505,
+        ModelR_predictFunc=ModelBackTest_20250719,
         Factor_sliceFunc=Factor_slice,
         Asset_sliceFunc=Asset_slice,
         Optimize_func=execute_optimize,
@@ -1067,7 +1067,7 @@ if __name__=="__main__":
     # # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
     # F.init_CombineDataBase()
     # F.add_CombineData()
-    F.BackTest()
-    # F.ModelTest()
+    # F.BackTest()
+    F.ModelTest()
     # F.Slice()
     # F.Optimize()

@@ -154,3 +154,5 @@ def add_MinuteKDB(DBName,TBName,dropDB,startDate,endDate){
     }
 }
 add_MinuteKDB(DBName,TBName,dropDB,startDate,endDate)
+
+t = select * from loadTable("dfs://asset_cn/ReturnModel_MLModel_20250710","ModelIndividual_return")

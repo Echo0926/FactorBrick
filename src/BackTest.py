@@ -89,16 +89,16 @@ if __name__=="__main__":
     # write_info_json(data=Info_data, date_col="date", symbol_col="symbol", save_path=stock_info_path,
     #              index_col="symbol")
 
-    # Macro Position Generation
-    macro_data = session.run("""
-    pt = select * from loadTable("dfs://index_cn/stock_index","stock_index") where symbol = "000985";
-    update pt set bias = nullFill((prev(close)-prev(ma(close,5,1)))/prev(ma(close,5,1)),0);
-    select date,bias from pt
-    """)
-    macro_data["date"]=macro_data["date"].apply(lambda x: pd.Timestamp(x).strftime("%Y%m%d"))
-    write_json(data=dict(zip(macro_data["date"],macro_data["bias"])),
-               output_path="E:\\factorbrick\\data\\backtest\\stock_cn\\macro_json/",
-               file_name="macro.json")
+    # # Macro Position Generation
+    # macro_data = session.run("""
+    # pt = select * from loadTable("dfs://index_cn/stock_index","stock_index") where symbol = "000985";
+    # update pt set bias = nullFill((prev(close)-prev(ma(close,5,1)))/prev(ma(close,5,1)),0);
+    # select date,bias from pt
+    # """)
+    # macro_data["date"]=macro_data["date"].apply(lambda x: pd.Timestamp(x).strftime("%Y%m%d"))
+    # write_json(data=dict(zip(macro_data["date"],macro_data["bias"])),
+    #            output_path="E:\\factorbrick\\data\\backtest\\stock_cn\\macro_json/",
+    #            file_name="macro.json")
 
     # K_data=session.run("""
     # pt=select * from loadTable("dfs://future_cn/combination","base") where isMainContract=1;
