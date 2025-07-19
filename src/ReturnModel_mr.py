@@ -1032,7 +1032,7 @@ class ReturnModel_Backtest:
 
 
 if __name__=="__main__":
-    from src.factor_func.Data_func import ReturnModel_Data as R
+    from src.factor_func.Data_func_mr import ReturnModel_Data as R
     # from src.factor_func.Data_func_mr import ReturnModel_Data as R
     from src.factor_func.ReturnModel_func import FactorIC_pred,FactorR_pred,MultiFactorR_pred,Factor_slice,Asset_slice
     from src.factor_func.Optimize_func_riskfolio import execute_optimize
