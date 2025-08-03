@@ -3,6 +3,7 @@ import dolphindb as ddb
 import pandas as pd
 import numpy as np
 import tqdm
+import pandas_market_calendars as mcal
 
 if __name__ == "__main__":
     session=ddb.session()
@@ -26,9 +27,15 @@ if __name__ == "__main__":
                                             tableName="component_cn",
                                             partitionColName="date",
                                             dbConnectionPool=pool)  # 写入数据的appender
-    for date,component_list in tqdm.tqdm(comp.items()):
-        appender.append(pd.DataFrame({"index":["000016"]*len(component_list),
-                                      "date":[pd.Timestamp(date)]*len(component_list),
-                                      "component":component_list}))
+    # for date,component_list in tqdm.tqdm(comp.items()):
+    #     appender.append(pd.DataFrame({"index":["000016"]*len(component_list),
+    #                                   "date":[pd.Timestamp(date)]*len(component_list),
+    #                                   "component":component_list}))
+    component_list = list(comp.values())[-1]
+    for cdate in [i.strftime('%Y%m%d') for i in mcal.get_calendar('XSHG').valid_days(start_date=list(comp.keys())[-1], end_date="20250729")]:
+        appender.append(pd.DataFrame({"index": ["000016"] * len(component_list),
+                                      "date": [pd.Timestamp(cdate)] * len(component_list),
+                                      "component": component_list}))
+
 
 

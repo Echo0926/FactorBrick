@@ -259,16 +259,13 @@ class ReturnModel_Data:
         undef(`df);
         
         // Benchmark df processing
-        print("开始合并指数数据")
         benchmark_df=select date,minute,open as b000001_open,close as b000001_close from loadTable("{self.benchmark_database}","{self.benchmark_table}"); // 这里只设了一个benchmark
         symbol_df=lj(symbol_df,benchmark_df,`date`minute);
         undef(`benchmark_df); 
         
         // Factor df processing
         factor_list={self.factor_list}; 
-        symbol_list = exec distinct(symbol) from symbol_df;
-        print("开始合并因子数据")
-        factor_pt=select symbol,date,{",".join(self.factor_list)} from loadTable("{self.factor_database}","{self.factor_table}") where date >= {self.start_dot_date} and symbol in symbol_list;
+        factor_pt=select symbol,date,{",".join(self.factor_list)} from loadTable("{self.factor_database}","{self.factor_table}") where date >= {self.start_dot_date};
         update factor_pt set minute = 1500;
         
         symbol_df=lj(symbol_df,factor_pt,`symbol`date`minute);

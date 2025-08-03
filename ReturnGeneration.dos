@@ -140,19 +140,24 @@ def init_MinuteKDB(DBName,TBName,dropDB){
 
 
 // 合成分钟频K线行情数据并添加至数据库中
-startDate = 2023.01.01
-endDate = 2024.12.31
+startDate = 2025.04.03
+endDate = 2025.04.30
 DBName = "dfs://MinuteKDB"
 TBName = "stock_bar"
-dropDB=true
-def add_MinuteKDB(DBName,TBName,dropDB,startDate,endDate){
-    init_MinuteKDB(DBName,TBName,dropDB)
+dropDB = false
+// init_MinuteKDB(DBName,TBName,dropDB)
+def add_MinuteKDB(DBName,TBName,startDate,endDate){
     for (day in getMarketCalendar("SSE",startDate,endDate)){
         MinFreqK_mr = select SecurityID, TradeDate, TradeTime, OpenPrice, HighPrice, LowPrice, ClosePrice, Volume, Turnover, TradesCount, PreClosePrice from getMinuteKBar_mr(startDate=day, endDate=day)
         loadTable(DBName,TBName).append!(MinFreqK_mr)
         print(day)
     }
 }
-add_MinuteKDB(DBName,TBName,dropDB,startDate,endDate)
+add_MinuteKDB(DBName,TBName,startDate,endDate)
 
-t = select * from loadTable("dfs://asset_cn/ReturnModel_MLModel_20250710","ModelIndividual_return")
+factor_t = select symbol,date,minute,shio_60 from loadTable("dfs://asset_cn/factor","factor") where date = 2024.10.08 and not isNull(shio_60)
+
+t = select count(*) from loadTable("dfs://asset_cn/factor","factor") where not isNull(shio_60) group by date order by date 
+t = sort(exec distinct(date) as date from loadTable("dfs://asset_cn/ReturnModel_20250730","combination") where not isNull(shio_60))
+template_pt = select * from loadTable("dfs://asset_cn/ReturnModel_20250730","template") where period = 148
+template = select symbol,date,minute,nbr240 from loadTable("dfs://asset_cn/ReturnModel_20250730","combination") where symbol ="600010.SH" and (not isNull(nbr240)) and (date = 2023.08.11)

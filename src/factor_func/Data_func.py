@@ -131,55 +131,60 @@ class ReturnModel_Data:
     def prepare_factor_data_long(self: ReturnModel_Backtest):
         """[自定义]Alpha因子计算并存储至因子数据库(宽表形式)"""
         self.session.run(f"""
-        pt = select SecurityID as symbol,TradeDate as date,int(string(TradeTime.hourOfDay())+lpad(string(TradeTime.minuteOfHour()),2,"0")) as minute,
-        open,high,low,close,volume,turnover from loadTable("dfs://MinuteKDB","stock_bar") 
-        where TradeDate between temporalAdd(date({self.start_dot_date}),-1,"d") and date({self.end_dot_date}) 
-        order by symbol,date,minute; // 这里根据因子情况修改-1为状态函数的最大时间跨度
+        ds = repartitionDS(<select SecurityID as symbol,TradeDate as date,int(string(TradeTime.hourOfDay())+lpad(string(TradeTime.minuteOfHour()),2,"0")) as minute,
+        open,high,low,close,volume,turnover from loadTable("dfs://MinuteKDB","stock_bar") where TradeDate between temporalAdd(date({self.start_dot_date}),-1,"d") and date({self.end_dot_date})>,`SecurityID); // 这里根据因子情况修改-1为状态函数的最大时间跨度
         
-        // 新增最新一个交易日的frame[用于日频决策]
-        last_pt=select temporalAdd(lastNot(date),1,"XSHG") as date,1500 as minute,NULL as open,NULL as high,NULL as low,NULL as close,NULL as volume,NULL as turnover from pt group by symbol; // 选取最后一个日期加一的形式作为决策的形式
-        append!(pt,last_pt);
-        undef(`last_pt);
-        update pt set vwap = nullFill!(turnover/volume,0);
+        // MapFunc
+        def FactorMap(data){{
+            pt = select * from data order by symbol,date,minute  // 正序排序
+            // 新增最新一个交易日的frame[用于日频决策]
+            last_pt=select temporalAdd(lastNot(date),1,"XSHG") as date,1500 as minute,NULL as open,NULL as high,NULL as low,NULL as close,NULL as volume,NULL as turnover from pt group by symbol; // 选取最后一个日期加一的形式作为决策的形式
+            append!(pt,last_pt);
+            undef(`last_pt);
+            update pt set vwap = nullFill!(turnover/volume,0);
             
-        // 分钟频时序因子
-        update pt set momentum_5 = nullFill(prev((close - prev(close))/prev(close)),0) context by symbol;   
-        //update pt set turnoverrate = prev(turnover_rate) context by symbol;
-        //update pt set turnoverrate_std_20 = prev(mstd(turnover_rate,20,1)) context by symbol;
-        update pt set volatility_20 = prev(mstd((close-prev(close))/prev(close),20,1)) context by symbol;
-        update pt set high_break_5 = prev(close/mmax(high,5,1)-1) context by symbol;
-        update pt set volume_spike_20 = prev(volume/mavg(volume,20)-1) context by symbol;
-        update pt set volamount_corr_10 = prev(mcorr(turnover,volume,10)) context by symbol;
-        // update pt set big_order_ratio = prev(turnover/(marketvalue*turnover_rate)) context by symbol;
-        update pt set alpha_3 = prev(mcorr(rank(open),rank(close),10)) context by symbol;
-        update pt set alpha_12 = prev(sign((volume - mfirst(volume, 2))) * (-1 * (close - mfirst(close, 2)))) context by symbol;
-        update pt set alpha_14 = prev(ratios(close)-1-mfirst(ratios(close)-1,4)) context by symbol;
-        update pt set draft = prev(high - mfirst(high, 3)) context by symbol;
-        update pt set alpha_23 = prev(iif((msum(high, 20) \ 20 < high), -draft, 0)) context by symbol;
-        dropColumns!(pt,`draft);
-        update pt set alpha_26 = prev(-mmax(mcorr(mrank(volume, true, 5), mrank(high, true, 5), 5), 3)) context by symbol;
-        update pt set alpha_41 = prev(pow(high * low, 0.5) - vwap) context by symbol;
-        update pt set draft = prev((mfirst(close, 21) - mfirst(close, 11)) \ 10 - (mfirst(close, 11) - close) \ 10) context by symbol;
-        update pt set alpha_46 = prev(iif(0.25 < draft, -1, iif(draft < 0, 1, (mfirst(close, 2) - close)))) context by symbol;
-        dropColumns!(pt,`draft);
-        update pt set draft = prev(((mfirst(close, 21) - mfirst(close, 11)) \ 10 - (mfirst(close, 11) - close) \ 10) < -0.1) context by symbol;
-        update pt set alpha_49 = prev(iif(draft, 1, mfirst(close, 2) - close)) context by symbol;
-        dropColumns!(pt,`draft);
-        update pt set draft = (mfirst(close, 21) - mfirst(close, 11)) \ 10 - (mfirst(close, 11) - close) \ 10 < -0.05 context by symbol;
-        update pt set alpha_51 = prev(iif(draft, 1, -(close - mfirst(close, 2)))) context by symbol;
-        dropColumns!(pt,`draft);
-        update pt set alpha_53 =  prev(-(((close - low) - (high - close)) \ (close - low) - mfirst(((close - low) - (high - close)) \ (close - low), 10))) context by symbol;
-        update pt set alpha_54 = prev(-(low - close) * pow(open, 5) \ ((low - high) * pow(close, 5))) context by symbol;       
+            // 分钟频时序因子
+            update pt set momentum_5 = nullFill(prev((close - prev(close))/prev(close)),0) context by symbol;   
+            //update pt set turnoverrate = prev(turnover_rate) context by symbol;
+            //update pt set turnoverrate_std_20 = prev(mstd(turnover_rate,20,1)) context by symbol;
+            update pt set volatility_20 = prev(mstd((close-prev(close))/prev(close),20,1)) context by symbol;
+            update pt set high_break_5 = prev(close/mmax(high,5,1)-1) context by symbol;
+            update pt set volume_spike_20 = prev(volume/mavg(volume,20)-1) context by symbol;
+            update pt set volamount_corr_10 = prev(mcorr(turnover,volume,10)) context by symbol;
+            // update pt set big_order_ratio = prev(turnover/(marketvalue*turnover_rate)) context by symbol;
+            update pt set alpha_3 = prev(mcorr(rank(open),rank(close),10)) context by symbol;
+            update pt set alpha_12 = prev(sign((volume - mfirst(volume, 2))) * (-1 * (close - mfirst(close, 2)))) context by symbol;
+            update pt set alpha_14 = prev(ratios(close)-1-mfirst(ratios(close)-1,4)) context by symbol;
+            update pt set draft = prev(high - mfirst(high, 3)) context by symbol;
+            update pt set alpha_23 = prev(iif((msum(high, 20) \ 20 < high), -draft, 0)) context by symbol;
+            dropColumns!(pt,`draft);
+            update pt set alpha_26 = prev(-mmax(mcorr(mrank(volume, true, 5), mrank(high, true, 5), 5), 3)) context by symbol;
+            update pt set alpha_41 = prev(pow(high * low, 0.5) - vwap) context by symbol;
+            update pt set draft = prev((mfirst(close, 21) - mfirst(close, 11)) \ 10 - (mfirst(close, 11) - close) \ 10) context by symbol;
+            update pt set alpha_46 = prev(iif(0.25 < draft, -1, iif(draft < 0, 1, (mfirst(close, 2) - close)))) context by symbol;
+            dropColumns!(pt,`draft);
+            update pt set draft = prev(((mfirst(close, 21) - mfirst(close, 11)) \ 10 - (mfirst(close, 11) - close) \ 10) < -0.1) context by symbol;
+            update pt set alpha_49 = prev(iif(draft, 1, mfirst(close, 2) - close)) context by symbol;
+            dropColumns!(pt,`draft);
+            update pt set draft = (mfirst(close, 21) - mfirst(close, 11)) \ 10 - (mfirst(close, 11) - close) \ 10 < -0.05 context by symbol;
+            update pt set alpha_51 = prev(iif(draft, 1, -(close - mfirst(close, 2)))) context by symbol;
+            dropColumns!(pt,`draft);
+            update pt set alpha_53 =  prev(-(((close - low) - (high - close)) \ (close - low) - mfirst(((close - low) - (high - close)) \ (close - low), 10))) context by symbol;
+            update pt set alpha_54 = prev(-(low - close) * pow(open, 5) \ ((low - high) * pow(close, 5))) context by symbol;       
             
-        // 分钟频截面因子(待补充)
-        dropColumns!(pt,["open","high","low","close","volume","turnover","vwap"])
+            // 分钟频截面因子(待补充)
+            dropColumns!(pt,["open","high","low","close","volume","turnover","vwap"])
             
-        // 截面空缺值填充
-        for (col in {self.factor_list}){{
-            pt[`draft] = pt[col]
-            update pt set draft = nullFill(draft, avg(draft)) context by minute; // 取分钟频截面的均值对因子进行填充
+            // 截面空缺值填充
+            for (col in {self.factor_list}){{
+                pt[`draft] = pt[col]
+                update pt set draft = nullFill(draft, avg(draft)) context by minute; // 取分钟频截面的均值对因子进行填充
+                dropColumns!(pt,`draft);
+            }}
+            return pt
         }}
-        dropColumns!(pt,`draft);
+        
+        pt = mr(ds, FactorMap).unionAll(false) // MapReduce操作
         
         // 添加至数据库
         def InsertData(DBName, TBName, data, batchsize){{
@@ -194,10 +199,9 @@ class ReturnModel_Data:
                 }}
                 start_idx = start_idx + batchsize
                 end_idx = end_idx + batchsize
-                print(end_idx)
             }}while(start_idx < krow)
         }}
-        InsertData(DBName="{self.factor_database}",TBName="{self.factor_table}",data=pt, batchsize=1000000); // batch设为1000000条记录
+        InsertData(DBName="{self.factor_database}",TBName="{self.factor_table}",data=pt,batchsize=1000000); // batch设为1000000条记录
         """)
 
     def prepare_combine_data(self: ReturnModel_Backtest):
@@ -205,17 +209,13 @@ class ReturnModel_Data:
         self.session.run(rf"""
         // 清理缓存
         clearAllCache();
+
+        // Symbol df processing
+        symbol_df=select symbol,date,minute,open,close,marketvalue,state,industry from loadTable('{self.symbol_database}','{self.symbol_table}') where date between date({self.start_dot_date}) and temporalAdd(date({self.end_dot_date}),int({self.t}),"XSHG");
         
         // Index Component Constraint
         index_df = select component as symbol,date from loadTable("dfs://component","component_cn") where index == "000016" and date between date({self.start_dot_date}) and temporalAdd(date({self.end_dot_date}),int({self.t}),"XSHG"); // 上证50成分股信息
-        symbol_list = exec distinct(symbol) from index_df;
-        
-        // Symbol df processing
-        symbol_df=select symbol,date,minute,open,close,marketvalue,state,industry from loadTable('{self.symbol_database}','{self.symbol_table}') where date between date({self.start_dot_date}) and temporalAdd(date({self.end_dot_date}),int({self.t}),"XSHG") and symbol in symbol_list;
-        
-        // Index Component Constraint
         symbol_df = lj(index_df,symbol_df,`symbol`date);
-        print(select * from symbol_df limit 10)
         undef(`index_df);
         
          // 新增一个period的frame[日频决策,与因子部分保持一致]
@@ -257,15 +257,13 @@ class ReturnModel_Data:
         undef(`df);
         
         // Benchmark df processing
-        print("开始合并指数数据");
         benchmark_df=select date,minute,open as b000001_open,close as b000001_close from loadTable("{self.benchmark_database}","{self.benchmark_table}"); // 这里只设了一个benchmark
         symbol_df=lj(symbol_df,benchmark_df,`date`minute);
         undef(`benchmark_df); 
         
         // Factor df processing
-        factor_list={self.factor_list};
-        print("开始合并因子数据"); 
-        factor_pt=select symbol,date,{",".join(self.factor_list)} from loadTable("{self.factor_database}","{self.factor_table}") where date >= {self.start_dot_date} and symbol in symbol_list;
+        factor_list={self.factor_list}; 
+        factor_pt=select symbol,date,{",".join(self.factor_list)} from loadTable("{self.factor_database}","{self.factor_table}") where date >= {self.start_dot_date};
         update factor_pt set minute = 1500;
         
         symbol_df=lj(symbol_df,factor_pt,`symbol`date`minute);
@@ -287,7 +285,6 @@ class ReturnModel_Data:
                 }}
                 start_idx = start_idx + batchsize
                 end_idx = end_idx + batchsize
-                print(end_idx);
             }}while(start_idx < krow)
         }}
         InsertData(DBName="{self.combine_database}",TBName="{self.combine_table}",data=symbol_df,batchsize=1000000); 

@@ -67,7 +67,7 @@ if __name__=="__main__":
     from src.strategy_func.StockPanel import get_stock_signal_to_dataframe, Stock_strategy
     # from src.strategy_func.Neutral import get_stock_signal_to_dataframe, Neutral_strategy
     with open(r".\config\backtest_config.json5", mode="r", encoding="UTF-8") as file:
-        BackTest_config  = json5.load(file)
+        BackTest_config = json5.load(file)
     with open(r".\config\returnmodel_config.json5", mode="r", encoding="UTF-8") as file:
         ReturnModel_config = json5.load(file)
 

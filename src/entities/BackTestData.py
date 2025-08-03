@@ -2,8 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 from src.utils import *
-# from src.entities.BackTestDolphinDB import BackTestConfig as BackTestConfig_dolphindb
-# from src.entities.BackTestPandas import BackTestConfig as BackTestConfig_dataframe
 
 def config_time(self):
     """

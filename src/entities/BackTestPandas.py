@@ -914,7 +914,7 @@ class CounterBehavior(TradeBehavior):
 
             # Step2. 再判断是否要止盈止损
             # if Dict['static_monitor'] == 0:  # 原始逻辑
-            if True:
+            # if True:
                 if not static_high and not static_low:
                     static_monitor = -1
                 elif not static_high and daily_min_price < static_low:  # 不设最大价格+当日最低价格<目标最低价(静态)
@@ -929,7 +929,7 @@ class CounterBehavior(TradeBehavior):
                     self.stock_summary[symbol]['static_monitor'] = static_monitor
 
             # if Dict['dynamic_monitor'] == 0:  # 原始逻辑
-            if True:
+            # if True:
                 if not dynamic_high and not dynamic_low:
                     dynamic_monitor = -1
                 elif not dynamic_high and daily_min_price < dynamic_low:  # 不设最大价格+当日最低价格<目标最低价(动态)
@@ -1371,7 +1371,8 @@ class Counter(CounterBehavior):
         date, minute =self.current_dot_date, str(self.current_minute)   # 注意: json里的键是string格式
 
         for i,orderDict in stock_counter.items():   # 订单编号,订单详情
-            order_state,symbol,price,vol,min_order_timestamp,max_order_timestamp=orderDict['order_state'],orderDict['symbol'],orderDict['price'],orderDict['vol'],orderDict['min_order_timestamp'],orderDict['max_order_timestamp']
+            order_state,symbol,price,vol,min_order_timestamp,max_order_timestamp=\
+                orderDict['order_state'],orderDict['symbol'],orderDict['price'],orderDict['vol'],orderDict['min_order_timestamp'],orderDict['max_order_timestamp']
             if max_order_timestamp<=self.current_timestamp:   # 说明这个订单时间太长了,搞不了
                 del self.stock_counter[i]
                 print(f"OrderNum{i}:Behavior{order_state}-Symbol{symbol}:Price{price}&Vol{vol} failed[Out of Timestamp]")

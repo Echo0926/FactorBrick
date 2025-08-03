@@ -96,7 +96,14 @@ class BackTestConfig:
         self.option_counter = {}  # 期权柜台
 
         # 1.持仓类
-        self.stock_record = pd.DataFrame({'state': [], 'reason': [], 'date': [], "minute": [], 'symbol': [], 'price': [], 'vol': [], 'pnl': []})
+        self.stock_record = pd.DataFrame({'state': [],
+                                          'reason': [],
+                                          'date': [],
+                                          "minute": [],
+                                          'symbol': [],
+                                          'price': [],
+                                          'vol': [],
+                                          'pnl': []})
         self.future_record = pd.DataFrame({'state': [], 'reason': [], 'date': [], "minute":[], 'contract': [], 'order_type': [], 'price': [], 'vol': [], 'pnl': []})
         self.option_record = pd.DataFrame({'state': [], 'reason': [], 'date': [], "minute":[], 'option': [], 'order_type': [], 'price': [], 'vol': [], 'pnl': []})  # order_type:['BC','SC','BP','SP']
         self.stock_position = {}  # 当前股票持仓情况 format:见开头注释

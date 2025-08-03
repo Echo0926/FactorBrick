@@ -1,7 +1,7 @@
 {
   // Basic Config
   "start_date": "20230101",
-  "end_date": "20241201",
+  "end_date": "20250430",
   "posPeriod": 1,
   "callBackPeriod": 30,
   "data_path": "D:\\DolphinDB\\Project\\FactorBrick\\data",
@@ -17,35 +17,15 @@
   // FACTOR DATABASE
   "factor_database": "dfs://asset_cn/factor",
   "factor_table": "factor",
-  "factor_list": [
-    "momentum_5",
-    // "turnoverrate",
-    // "turnoverrate_std_20",
-    "volatility_20",
-    "high_break_5",
-    "volume_spike_20",
-    "volamount_corr_10",
-    // "big_order_ratio",
-    "alpha_3",
-    "alpha_12",
-    "alpha_14",
-    "alpha_23",
-    "alpha_26",
-    "alpha_41",
-    "alpha_46",
-    "alpha_49",
-    "alpha_51",
-//    "alpha_53",
-//    "alpha_54"
-  ],
+  "factor_list": ["vaR240_240","cvaR240_240"],
 
   // COMBINE DATABASE
-  combine_database: "dfs://asset_cn/ReturnModel_20250710",
+  combine_database: "dfs://asset_cn/ReturnModel_20250728",
   combine_table: "combination",
   "label_pred": "NBR240",
 
   // RESULT DATABASE
-  result_database: "dfs://asset_cn/ReturnModel_result_20250710",
+  result_database: "dfs://asset_cn/ReturnModel_result_20250728",
   period_return_Algo: "NBR240",   // 这里直接让他等于label_pred
   SingleFactor_estimation: true,
   MultiFactor_estimation: true,
@@ -59,7 +39,7 @@
   Group_list: ["composition","LGB","XGB"],
 
   // Model DataBase
-  model_database: "dfs://asset_cn/ReturnModel_MLModel_20250710",   // 模型预测收益率保存路径
+  model_database: "dfs://asset_cn/ReturnModel_MLModel_20250728",   // 模型预测收益率保存路径
   Model_list: ["xgboost","lightgbm"],//["lightgbm","gbdt"], // 所选模型(详见model_config+pipeline中的mapping_dict)
   Model_save_path: "D:\\DolphinDB\\Project\\FactorBrick\\model",
 

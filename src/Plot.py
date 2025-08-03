@@ -791,7 +791,7 @@ class ReturnModel_Plot:
 
 
 if __name__=="__main__":
-    with open(r"D:\DolphinDB\Project\FactorBrick\src\config\returnmodel_config.json5", mode="r", encoding="UTF-8") as file:
+    with open(r"D:\DolphinDB\Project\FactorBrick\src\config\returnmodel_config0728.json5", mode="r", encoding="UTF-8") as file:
         cfg = json5.load(file)
     session=ddb.session()
     session.connect("172.16.0.184",8001,"maxim","dyJmoc-tiznem-1figgu")
@@ -800,8 +800,8 @@ if __name__=="__main__":
     asset_return_Algo="NBR240",
     bench_return_Algo="nullFill((benchmark_close-prev(benchmark_close))/prev(benchmark_close),0) context by symbol"
     )
-    # P.FactorR_plot()                # 绘制单因子模型回测结果
+    P.FactorR_plot()                # 绘制单因子模型回测结果
     # P.MultiFactorR_plot()         # 绘制多因子模型回测结果
-    P.Return_Fitted_plot()        # 绘制自定义ML&DL模型预测结果
+    # P.Return_Fitted_plot()        # 绘制自定义ML&DL模型预测结果
     # P.GroupReturn_Plot()          # 绘制分组等权收益率回测结果
     # P.OptimizeReturnPlot()        # 绘制投资组合优化回测结果
