@@ -13,7 +13,7 @@ pd.set_option("display.max_columns",None)
 plt.rcParams['font.sans-serif']=['KaiTi'] # 显示中文
 plt.rcParams['axes.unicode_minus']=False # 显示负号
 
-class ReturnModel_Backtest:
+class ReturnModel_Backtest_mr:
     def __init__(self, session, pool, config,
         Symbol_prepareFunc=None,
         Benchmark_prepareFunc=None,
@@ -159,13 +159,16 @@ class ReturnModel_Backtest:
         else:
             pass
 
-    def init_FactorDatabase_long(self, dropDatabase=False):
+    def init_FactorDatabase_long(self, dropDatabase=False, dropTable=False):
         """
         [Optional]第一次运行,初始化因子数据库(宽表形式)
         """
         if dropDatabase:
             if self.session.existsDatabase(dbUrl=self.factor_database):  # 删除数据库
                 self.session.dropDatabase(dbPath=self.factor_database)
+        if dropTable:
+            if self.session.existsTable(dbUrl=self.factor_database,tableName=self.factor_table):
+                self.session.dropTable(dbPath=self.factor_database,tableName=self.factor_table)
 
         if not self.session.existsTable(dbUrl=self.factor_database,tableName=self.factor_table):
             self.session.run(f"""
@@ -519,15 +522,12 @@ class ReturnModel_Backtest:
         """[单因子回测]individual_return(period_return)&summary_result&summary_daily_result"""
         return rf"""
         // 单因子回测框架
+        pt=select *,{self.Period_return_Algo} as R from loadTable("{self.combine_database}","{self.combine_table}") context by symbol order by symbol,period,date,minute;
         factor_list={self.factor_list}; // 因子列表
-        period_list=sort(distinct(period) from loadTable("{self.combine_database}","{self.combine_table}"), true);
-        Ridge_estimation=int({int(self.Ridge_estimation)});  // 是否估计Ridge因子收益率
-        Lasso_estimation=int({int(self.Lasso_estimation)});  // 是否估计Lasso因子收益率
-        ElasticNet_estimation=int({int(self.ElasticNet_estimation)});   // 是否估计ElasticNet因子收益率
-        
+        period_list=sort(exec distinct(period) from loadTable("{self.combine_database}","{self.combine_table}"), true);
         // 保存Individual结果
         for (benchmark_str in ["{self.benchmark}"]){{
-            individual_return=select firstNot(R) as R,{','.join(f"first({item}) as {item}" for item in self.factor_list)} from pt group by symbol,period;
+            individual_return=select firstNot({self.label_pred}) as R,{','.join(f"first({item}) as {item}" for item in self.factor_list)} from pt group by symbol,period;
             individual_return=select benchmark_str as Benchmark,period,symbol,{','.join(self.factor_list)},R from individual_return;
             loadTable('{self.result_database}','{self.individualF_table}').append!(individual_return);
             undef(`individual_return);
@@ -535,16 +535,23 @@ class ReturnModel_Backtest:
 
         // Summary Map Reduce
         def Summary_mr(p,benchmark_str){{
-            pt=select *,{self.Period_return_Algo} as R from loadTable("{self.combine_database}","{self.combine_table}") where period<=p and period>p-{self.callBackPeriod} order by symbol,period,date,minute;
+            print("current_period: "+string(p));
+            factor_list = {self.factor_list}; // 里面再定义一次
+            Ridge_estimation=int({int(self.Ridge_estimation)});  // 是否估计Ridge因子收益率
+            Lasso_estimation=int({int(self.Lasso_estimation)});  // 是否估计Lasso因子收益率
+            ElasticNet_estimation=int({int(self.ElasticNet_estimation)});   // 是否估计ElasticNet因子收益率
+            pt=select *,{self.Period_return_Algo} as R from loadTable("{self.combine_database}","{self.combine_table}") where period<=p and period>p-{self.callBackPeriod} context by symbol order by symbol,period,date,minute;
             pt[`benchmark_open]=pt[benchmark_str+"_open"];   // 当前benchmark对应的开盘价
             pt[`benchmark_close]=pt[benchmark_str+"_close"]; // 当前benchmark对应的收盘价
-            
+                    
             // Data
             reg_df=select * from pt where not isNull(R); 
             func=def(X):countNanInf(X,true); // 【新增】去除了收益率空缺值的样本进行回归
-            reg_df[`naninf_count]=byRow(func,reg_df[factor_list]);
+            // reg_df[`naninf_count]=byRow(func,reg_df[factor_list]);
+            reg_df[`naninf_count]=byRow(func,reg_df[[`R]]);
             reg_df=select * from reg_df where naninf_count=0;
-                    
+            
+            counter=0;        
             if (count(reg_df)>0){{
                 // IC&RankIC
                 IC=[];
@@ -559,7 +566,6 @@ class ReturnModel_Backtest:
                 RankIC_df=select `RankIC as class, indicator, value from RankIC_df;
                         
                 //OLS
-                counter=0;
                 for (col in factor_list){{
                     reg_df[col+"_alpha"]=1.0; // 添加alpha
                     result_OLS=ols(reg_df[`R],reg_df[[col+"_alpha",col]],intercept=false,mode=2);  // OLS回归结果
@@ -575,7 +581,9 @@ class ReturnModel_Backtest:
                             
                     // 添加至summary_table的数据行
                     if (counter==0){{
-                        summary_result=table([`R_square_OLS,`Adj_square_OLS,`Std_Error_OLS,`Obs_OLS] as `class, [col,col,col,col] as `indicator,[R_square,Adj_square,Std_error,Obs] as `value);}};
+                        summary_result=table([`R_square_OLS,`Adj_square_OLS,`Std_Error_OLS,`Obs_OLS] as `class, [col,col,col,col] as `indicator,[R_square,Adj_square,Std_error,Obs] as `value);
+                        counter=counter+1;
+                    }};
                     else{{
                         summary_result.append!(table([`R_square_OLS,`Adj_square_OLS,`Std_Error_OLS,`Obs_OLS] as `class, [col,col,col,col] as `indicator,[R_square,Adj_square,Std_error,Obs] as `value))}};
                     summary_result.append!(beta_df);
@@ -604,19 +612,21 @@ class ReturnModel_Backtest:
                         beta_df=select "R_ElasticNet" as class,* from beta_df;
                         summary_result.append!(beta_df);
                     }};
-                    counter=counter+1;
                 }};
                 summary_result.append!(IC_df);
                 summary_result.append!(RankIC_df);
                 summary_result=select p as period,* from summary_result;  // 最后添加日期
             }}; // period循环END
+            if (counter == 0){{
+                return ;
+            }}
             final_pos_result=select benchmark_str as Benchmark,period,class,indicator,value from summary_result;
             return final_pos_result;
         }}
         if (int({int(self.SingleFactor_estimation)})==1){{  // 说明需要进行单因子测试  
             for (benchmark_str in {self.benchmark_list}){{
                 summary_func = Summary_mr{{,benchmark_str}}; // DolphinDB函数部分应用
-                total_res = peach(summary_func,period_list);
+                total_res = peach(summary_func,period_list).unionAll(false);
             }}
             loadTable('{self.result_database}','{self.summary_table}').append!(total_res);
             undef(`total_res);
@@ -627,24 +637,29 @@ class ReturnModel_Backtest:
         """[多因子回测]"""
         return rf"""
         // 多因子回测框架
+        pt=select * from loadTable("{self.combine_database}","{self.combine_table}") order by symbol,period,date,minute;
         factor_list={self.factor_list}; // 多因子列表
         period_list=sort(exec distinct(period) from loadTable("{self.combine_database}","{self.combine_table}"), true);
-        Ridge_estimation=int({int(self.Ridge_estimation)});  // 是否估计Ridge因子收益率
-        Lasso_estimation=int({int(self.Lasso_estimation)});  // 是否估计Lasso因子收益率
-        ElasticNet_estimation=int({int(self.ElasticNet_estimation)});   // 是否估计ElasticNet因子收益率
-        add_Intercept=int({int(self.Multi_Intercept)});      // 多因子模型是否添加截距项
        
         // MultiSummary Map Reduce
         def MultiSummary_mr(p, benchmark_str){{
-            pt=select *,{self.Period_return_Algo} as R from loadTable("{self.combine_database}","{self.combine_table}") where period<=p and period>p-{self.callBackPeriod} order by symbol,period,date,minute;
+            print("current_period: "+string(p));
+            // 再定义一次
+            factor_list = {self.factor_list}
+            Ridge_estimation=int({int(self.Ridge_estimation)});  // 是否估计Ridge因子收益率
+            Lasso_estimation=int({int(self.Lasso_estimation)});  // 是否估计Lasso因子收益率
+            ElasticNet_estimation=int({int(self.ElasticNet_estimation)});   // 是否估计ElasticNet因子收益率
+            add_Intercept=int({int(self.Multi_Intercept)});      // 多因子模型是否添加截距项
+            
+            pt=select *,{self.Period_return_Algo} as R from loadTable("{self.combine_database}","{self.combine_table}") where period<=p and period>p-{self.callBackPeriod} context by symbol order by symbol,period,date,minute;
             pt[`benchmark_open]=pt[benchmark_str+"_open"];   // 当前benchmark对应的开盘价
             pt[`benchmark_close]=pt[benchmark_str+"_close"]; // 当前benchmark对应的收盘价
             counter=0;
-            print("current_period: "+string(p));
             // Data
             reg_df=select * from pt where not isNull(R); 
             func=def(X):countNanInf(X,true); // 【新增】去除了收益率为空的样本
-            reg_df[`naninf_count]=byRow(func,reg_df[factor_list]);
+            reg_df[`naninf_count]=byRow(func,reg_df[[`R]]);
+            // reg_df[`naninf_count]=byRow(func,reg_df[factor_list]);
             reg_df=select * from reg_df where naninf_count=0;
             
             if (count(reg_df)>0){{
@@ -727,7 +742,7 @@ class ReturnModel_Backtest:
         }}
         for (benchmark_str in {self.benchmark_list}){{
             multisummary_func = MultiSummary_mr{{,benchmark_str}}; // DolphinDB函数部分应用
-            total_res = peach(multisummary_func,period_list);
+            total_res = peach(multisummary_func,period_list).unionAll(false);
             // 格式调整!!
             total_res=select benchmark_str as Benchmark,period,class,indicator,value from total_res order by Benchmark,period;
             loadTable('{self.result_database}','{self.Multisummary_table}').append!(total_res);
@@ -1032,8 +1047,7 @@ class ReturnModel_Backtest:
 
 
 if __name__=="__main__":
-    from src.factor_func.Data_func_mr import ReturnModel_Data as R
-    # from src.factor_func.Data_func_mr import ReturnModel_Data as R
+    from src.factor_func.Data_func_0728 import ReturnModel_Data as R
     from src.factor_func.ReturnModel_func import FactorIC_pred,FactorR_pred,MultiFactorR_pred,Factor_slice,Asset_slice
     from src.factor_func.Optimize_func_riskfolio import execute_optimize
     from src.model_func.Model import *
@@ -1041,9 +1055,9 @@ if __name__=="__main__":
     session.connect("172.16.0.184",8001,"maxim","dyJmoc-tiznem-1figgu")
     pool=ddb.DBConnectionPool("172.16.0.184",8001,10,"maxim","dyJmoc-tiznem-1figgu")
 
-    with open(r".\config\returnmodel_config.json5", mode="r", encoding="UTF-8") as file:
+    with open(r".\config\returnmodel_config0728.json5", mode="r", encoding="UTF-8") as file:
         cfg = json5.load(file)
-    F=ReturnModel_Backtest(
+    F=ReturnModel_Backtest_mr(
         session=session,pool=pool,config=cfg,
         Symbol_prepareFunc=R.prepare_symbol_data,
         Benchmark_prepareFunc=R.prepare_benchmark_data,
@@ -1057,17 +1071,18 @@ if __name__=="__main__":
         Asset_sliceFunc=Asset_slice,
         Optimize_func=execute_optimize,
     )
+
     # F.init_SymbolDatabase(dropDatabase=True)
     # F.add_SymbolData()
     # F.init_BenchmarkDatabase()
     # F.add_BenchmarkData()
-    # F.init_FactorDatabase_long(dropDatabase=True)   # 如果是long_factor_database: 因子池变动的时候都要重新跑
-    # F.add_FactorData()
+    F.init_FactorDatabase_long(dropDatabase=False, dropTable=True)   # 如果是long_factor_database: 因子池变动的时候都要重新跑
+    F.add_FactorData()
 
-    # # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
-    # F.init_CombineDataBase()
-    # F.add_CombineData()
-    # F.BackTest()
-    F.ModelTest()
+    # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
+    F.init_CombineDataBase()
+    F.add_CombineData()
+    F.BackTest()
+    # F.ModelTest()
     # F.Slice()
     # F.Optimize()

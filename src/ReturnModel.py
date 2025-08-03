@@ -137,11 +137,9 @@ class ReturnModel_Backtest:
                 pass
         if not self.session.existsTable(dbUrl=self.symbol_database,tableName=self.symbol_table):
             self.session.run(f"""
-            db1 = database(, RANGE,2000.01M+(0..30)*12)
-            db2 = database(, HASH,[SYMBOL,50])
-            db=database("{self.symbol_database}",COMPO,[db1,db2],engine="TSDB")
+            db=database("{self.symbol_database}",RANGE,2000.01M+(0..30)*12,engine="TSDB")
             schemaTb=table(1:0,`symbol`date`minute`open`close`marketvalue`state`industry,[SYMBOL,DATE,INT,DOUBLE,DOUBLE,DOUBLE,DOUBLE,SYMBOL]);
-            t=db.createPartitionedTable(table=schemaTb,tableName="{self.symbol_table}",partitionColumns=`date`symbol,sortColumns=["symbol","industry","minute","date"],keepDuplicates=LAST)
+            t=db.createPartitionedTable(table=schemaTb,tableName="{self.symbol_table}",partitionColumns="date",sortColumns=["symbol","industry","minute","date"],keepDuplicates=LAST)
             """)
         else:
             pass
@@ -150,11 +148,9 @@ class ReturnModel_Backtest:
         """[Optional]第一次运行,初始化基准收益数据库"""
         if not self.session.existsTable(dbUrl=self.benchmark_database,tableName=self.benchmark_table):
             self.session.run(f"""
-            db1 = database(, RANGE,2000.01M+(0..30)*12)
-            db2 = database(, HASH,[SYMBOL,50])
-            db=database("{self.benchmark_database}",COMPO,[db1,db2],engine="TSDB")
+            db=database("{self.benchmark_database}",RANGE,2000.01M+(0..30)*12,engine="TSDB")
             schemaTb=table(1:0,`symbol`date`minute`open`close,[SYMBOL,DATE,INT,DOUBLE,DOUBLE]);
-            t=db.createPartitionedTable(table=schemaTb,tableName="{self.benchmark_table}",partitionColumns=`date`symbol,sortColumns=["symbol","date","minute"],keepDuplicates=LAST)
+            t=db.createPartitionedTable(table=schemaTb,tableName="{self.benchmark_table}",partitionColumns="date",sortColumns=["symbol","date","minute"],keepDuplicates=LAST)
             """)
         else:
             pass
@@ -673,6 +669,7 @@ class ReturnModel_Backtest:
                 func=def(X):countNanInf(X,true); // 【新增】去除了收益率为空的样本
                 reg_df[`naninf_count]=byRow(func,reg_df[factor_list]);
                 reg_df=select * from reg_df where naninf_count=0;
+                
                 if (count(reg_df)>0){{
                     // IC&RankIC
                     IC=[];
@@ -1063,8 +1060,7 @@ class ReturnModel_Backtest:
 
 
 if __name__=="__main__":
-    from src.factor_func.Data_func import ReturnModel_Data as R
-    # from src.factor_func.Data_func_mr import ReturnModel_Data as R
+    from src.factor_func.Data_func_0730 import ReturnModel_Data as R
     from src.factor_func.ReturnModel_func import FactorIC_pred,FactorR_pred,MultiFactorR_pred,Factor_slice,Asset_slice
     from src.factor_func.Optimize_func_riskfolio import execute_optimize
     from src.model_func.Model import *
@@ -1072,7 +1068,7 @@ if __name__=="__main__":
     session.connect("172.16.0.184",8001,"maxim","dyJmoc-tiznem-1figgu")
     pool=ddb.DBConnectionPool("172.16.0.184",8001,10,"maxim","dyJmoc-tiznem-1figgu")
 
-    with open(r".\config\returnmodel_config.json5", mode="r", encoding="UTF-8") as file:
+    with open(r".\config\returnmodel_config0730.json5", mode="r", encoding="UTF-8") as file:
         cfg = json5.load(file)
     F=ReturnModel_Backtest(
         session=session,pool=pool,config=cfg,
@@ -1092,12 +1088,12 @@ if __name__=="__main__":
     # F.add_SymbolData()
     # F.init_BenchmarkDatabase()
     # F.add_BenchmarkData()
-    # F.init_FactorDatabase_long(dropDatabase=True)   # 如果是long_factor_database: 因子池变动的时候都要重新跑
-    # F.add_FactorData()
+    F.init_FactorDatabase_long(dropDatabase=True)   # 如果是long_factor_database: 因子池变动的时候都要重新跑
+    F.add_FactorData()
 
-    # # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
-    # F.init_CombineDataBase()
-    # F.add_CombineData()
+    # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
+    F.init_CombineDataBase()
+    F.add_CombineData()
     F.BackTest()
     # F.ModelTest()
     # F.Slice()
