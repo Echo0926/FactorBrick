@@ -82,6 +82,13 @@ class ReturnModel_Plot:
             format_func=str,
             help='即ReturnModel中的Benchmark_list'
         )
+        factor = st.selectbox(
+            label="请选择因子",
+            options=self.factor_list,
+            index=0,
+            format_func=str,
+            help="选择当前因子进行因子分层收益展示"
+        )
         method=st.selectbox(
             label="请输入估计方法",
             options=("OLS","Ridge","Lasso","ElasticNet"),
@@ -90,14 +97,14 @@ class ReturnModel_Plot:
             help="即因子回归时候的统计估计方法method"
         )
         st.title("_Single Factor BackTest Analysis_")
-        tabR,tabIC,tabT,tabReg=st.tabs(["因子收益率R","因子IC值","因子T值","回归统计结果"])
+        tabR,tabIC,tabT,tabQuantile,tabReg=st.tabs(["因子收益率R","因子IC值","因子T值","因子分组收益率","回归统计结果"])
         Dict=self.session.run(rf"""
         pt=select * from loadTable("{self.result_database}","{self.summary_table}") where Benchmark="{benchmark}";
         template_pt=select start_date,end_date,period from loadTable("{self.combine_database}","{self.template_table}");
         pt=select * from pt left join template_pt on template_pt.period=pt.period;
         undef(`template_pt);
         pt=select * from pt where start_date>=date({self.start_dot_date}) and end_date<=date({self.end_dot_date});
-        pt=select * from pt where class ilike "%_{method}" or class in ["IC","RankIC"];        
+        pt=select * from pt where class ilike "%_{method}" or class in ["IC","RankIC"] or class ilike "QuantileReturn%";        
 
         // 因子收益率&累计因子收益率
         R=select value from pt where class ="R_"+"{method}" pivot by start_date as date,indicator;
@@ -115,6 +122,15 @@ class ReturnModel_Plot:
         
         // Tstat
         t_stat=select value from pt where class ilike "tstat_%" pivot by start_date as date,indicator;
+        
+        // 分层回测
+        Quantile_Return = select value from pt where class ilike "QuantileReturn%" and indicator=="{factor}" pivot by start_date as date, class;
+        L = Quantile_Return["date"];
+        Quantile = Quantile_Return.copy();
+        dropColumns!(Quantile,`date);
+        Quantile = Quantile + 1 
+        Quantile_Return_cumprod = cumprod(Quantile);
+        Quantile_Return_cumprod = select L as date,* from Quantile_Return_cumprod;
         
         // IC & 累计IC
         IC=select value from pt where class="IC" pivot by start_date as date,indicator;
@@ -147,8 +163,8 @@ class ReturnModel_Plot:
         undef(`pt); // 清除缓存
         
         // 返回为字典格式
-        Dict=dict(["R_square","Adj_square","Obs","Std_Error","R","R_cumsum","t_stat","IC","IC_cumsum","RankIC","RankIC_cumsum","avg_IC","IR","avg_RankIC","RankIR"],
-        [R_square,Adj_square,Obs,Std_Error,R,R_cumsum,t_stat,IC,IC_cumsum,RankIC,RankIC_cumsum,avg_IC,IR,avg_RankIC,RankIR]);
+        Dict=dict(["R_square","Adj_square","Obs","Std_Error","R","R_cumsum","t_stat","Quantile_Return","Quantile_Return_cumprod","IC","IC_cumsum","RankIC","RankIC_cumsum","avg_IC","IR","avg_RankIC","RankIR"],
+        [R_square,Adj_square,Obs,Std_Error,R,R_cumsum,t_stat,Quantile_Return,Quantile_Return_cumprod,IC,IC_cumsum,RankIC,RankIC_cumsum,avg_IC,IR,avg_RankIC,RankIR]);
         Dict
         """)
         R_square=Dict["R_square"]
@@ -158,6 +174,8 @@ class ReturnModel_Plot:
         R=Dict["R"]
         R_cumsum=Dict["R_cumsum"]
         t_stat=Dict["t_stat"]
+        Quantile_Return=Dict["Quantile_Return"]
+        Quantile_Return_cumprod=Dict["Quantile_Return_cumprod"]
         IC=Dict["IC"]
         IC_cumsum=Dict["IC_cumsum"]
         RankIC=Dict["RankIC"]
@@ -203,6 +221,11 @@ class ReturnModel_Plot:
             t_stat=t_stat.set_index("date")
             t_stat=(t_stat.abs()>=2).mean()  # .mean()计算|T|≥2的比例
             st.dataframe(data=t_stat)
+        with tabQuantile:
+            st.subheader("Single Factor Quantile Return", divider=True)
+            st.line_chart(data=Quantile_Return, x="date", y=None)
+            st.subheader("Single Factor Quantile Return(cumprod)", divider=True)
+            st.line_chart(data=Quantile_Return_cumprod, x="date", y=None)
         with tabReg:
             st.subheader("R square",divider=True)
             st.bar_chart(data=R_square,x="date",y=None,stack=False)

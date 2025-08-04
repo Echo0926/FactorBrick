@@ -6,6 +6,7 @@
   "callBackPeriod": 30,
   "data_path": "D:\\DolphinDB\\Project\\FactorBrick\\data",
   "src_path": "D:\\DolphinDB\\Project\\FactorBrick\\src",
+  "Quantile": 5,
 
   // K BAR DATABASE
   "symbol_database": "dfs://asset_cn/ReturnModel",

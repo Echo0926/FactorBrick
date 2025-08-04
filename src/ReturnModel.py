@@ -68,6 +68,7 @@ class ReturnModel_Backtest:
         self.posPeriod=config["posPeriod"]     # 调仓周期
         self.t = self.posPeriod
         self.callBackPeriod=config["callBackPeriod"] # 回看周期
+        self.Quantile=config["Quantile"]    # 按因子大小分组数分层回测
         self.start_date=config["start_date"]
         self.end_date=config["end_date"]
         self.start_dot_date=pd.Timestamp(self.start_date).strftime('%Y.%m.%d')
@@ -520,6 +521,8 @@ class ReturnModel_Backtest:
         Ridge_estimation=int({int(self.Ridge_estimation)});  // 是否估计Ridge因子收益率
         Lasso_estimation=int({int(self.Lasso_estimation)});  // 是否估计Lasso因子收益率
         ElasticNet_estimation=int({int(self.ElasticNet_estimation)});   // 是否估计ElasticNet因子收益率
+        QuantileNum = int({self.Quantile});
+        bins = (0..(QuantileNum-1)*(1.0\QuantileNum)); // quantile bins
         
         // 在不同的benchmark下计算预期收益率
         for (benchmark_str in ["{self.benchmark}"]){{    
@@ -551,13 +554,31 @@ class ReturnModel_Backtest:
                     reg_df[`naninf_count]=byRow(func,reg_df[factor_list]);
                     reg_df=select * from reg_df where naninf_count=0;
                     
-                    if (count(reg_df)>0){{
+                
+                    if (count(reg_df)>0){{                        
                         // IC&RankIC
                         IC=[];
                         RankIC=[];
+                        quantile_df = select * from reg_df where period == p;
+                        update quantile_df set period_return = (lastNot(close)-firstNot(open))/firstNot(open) context by symbol;
+                        qouter = 0
                         for (col in factor_list){{
+                            // ICIR
                             append!(IC,corr(reg_df[col],reg_df[`R]));
                             append!(RankIC,corr(rank(reg_df[col]),rank(reg_df[`R])));
+                            
+                            // 分层测试
+                            quantileFunc = quantile{{reg_df[col],,"linear"}}; // 函数部分化应用
+                            split = each(quantileFunc, bins);
+                            quantile_df[`Quantile] = digitize(quantile_df[col], split, right=false);
+                            quantile_return = select nullFill(avg(period_return),0.0) as value from quantile_df group by Quantile order by Quantile
+                            if (qouter == 0){{
+                                QuantileReturn_df = select `QuantileReturn+string(Quantile) as class, col as indicator, value from quantile_return  
+                                qouter += 1;
+                            }}else{{
+                                QuantileReturn_df.append!(select `QuantileReturn+string(Quantile) as class, col as indicator, value from quantile_return)
+                            }}
+                        
                         }};
                         IC_df=table(factor_list as `indicator,IC as `value);
                         IC_df=select `IC as class, indicator, value from IC_df;
@@ -614,6 +635,7 @@ class ReturnModel_Backtest:
                         }};
                         summary_result.append!(IC_df);
                         summary_result.append!(RankIC_df);
+                        summary_result.append!(QuantileReturn_df); // [新增] 分层回测结果
                         summary_result=select p as period,* from summary_result;  // 最后添加日期
                             
                         if (COUNTER==0){{
