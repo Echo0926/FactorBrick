@@ -568,7 +568,7 @@ class ReturnModel_Backtest_mr:
                     append!(RankIC,corr(rank(reg_df[col]),rank(reg_df[`R])));
                     
                     // 分层测试
-                    quantileFunc = quantile{{reg_df[col],,"linear"}}; // 函数部分化应用
+                    quantileFunc = quantile{{quantile_df[col],,"linear"}}; // 函数部分化应用
                     split = each(quantileFunc, bins);
                     quantile_df[`Quantile] = digitize(quantile_df[col], split, right=false);
                     quantile_return = select nullFill(avg(period_return),0.0) as value from quantile_df group by Quantile order by Quantile
