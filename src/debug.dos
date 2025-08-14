@@ -1,0 +1,136 @@
+ benchmark_str="b399300";
+        factor_list=['shio', 'shioStrong', 'shioWeak', 'shio_avg20', 'shioStrong_avg20', 'shioWeak_avg20'];
+        Ridge_estimation=int(1);  // 是否估计Ridge因子收益率
+        Lasso_estimation=int(0);  // 是否估计Lasso因子收益率
+        ElasticNet_estimation=int(0);   // 是否估计ElasticNet因子收益率
+        
+        for (r_interval in [1, 5, 10, 20, 30]){
+            r_interval = int(r_interval);
+            print("Calculating ReturnPred"+string(r_interval))
+            // 个股因子值+区间收益率数据
+            current_select=factor_list.copy();  
+            slice_pt=sql(select=[sqlCol("Benchmark"),
+                                sqlColAlias(<r_interval>,`ReturnInterval),
+                                sqlCol("FutureReturn"+string(r_interval)),
+                                sqlColAlias(<int(period)>,`period),
+                                sqlCol(`symbol)].append!(sqlCol(['shio', 'shioStrong', 'shioWeak', 'shio_avg20', 'shioStrong_avg20', 'shioWeak_avg20'])),
+                        from=loadTable("dfs://asset_cn/Result/DayFreq20250806","individual"),
+                        where=[<Benchmark=benchmark_str>]).eval();
+            rename!(slice_pt,"FutureReturn"+string(r_interval),`real_return)
+            for (col in factor_list){
+                rename!(slice_pt,col,string(col)+"_factor_value");
+            };
+            
+             // 因子收益率数据
+            factor_pt=select * from loadTable("dfs://asset_cn/Result/DayFreq20250806","factor_return") where Benchmark=benchmark_str and ReturnInterval == r_interval and class in ["R_OLS","R_Lasso","R_Ridge","R_ElasticNet"];
+            rename!(factor_pt,`value,`factor_return);
+            rename!(factor_pt,`value_pred,`factor_return_pred);
+            pred_factor_OLS=select factor_return_pred from factor_pt where class="R_OLS" pivot by period,indicator; // 预测因子收益率(OLS)
+            
+            // OLS预期收益率计算
+            OLS_pt=lj(slice_pt, pred_factor_OLS, `period)
+            OLS_pt[`method]="OLS"; // 表示估计方法为OLS的因子收益率得到的个股收益率预测值
+            undef(`pred_factor_OLS); // 内存释放
+            for (col in factor_list){
+                OLS_pt[string(col)+"_return_pred"]=OLS_pt[col+"_alpha"]+OLS_pt[col+"_factor_value"]*OLS_pt[col]; // α+因子值*β
+                dropColumns!(OLS_pt,string(col)+"_factor_value"); // 删了因子值
+                dropColumns!(OLS_pt,string(col)+"_alpha");    // 删了alpha
+                dropColumns!(OLS_pt,string(col)); // 删了β
+            };    
+            // Lasso预期收益率计算
+            if (Lasso_estimation==1){
+                pred_factor_Lasso=select factor_return_pred from factor_pt where class="R_Lasso" pivot by period,indicator; // 预测因子收益率(Lasso)
+                Lasso_pt=lj(slice_pt,pred_factor_Lasso, `period)
+                Lasso_pt[`method]="Lasso"; // 表示估计方法为OLS的因子收益率得到的个股收益率预测值
+                undef(`pred_factor_Lasso); // 内存释放
+                for (col in factor_list){
+                    Lasso_pt[string(col)+"_return_pred"]=Lasso_pt[col+"_alpha"]+Lasso_pt[col+"_factor_value"]*Lasso_pt[col]; // α+因子值*β
+                    dropColumns!(Lasso_pt,string(col)+"_factor_value"); // 删了因子值
+                    dropColumns!(Lasso_pt,string(col)+"_alpha");    // 删了alpha
+                    dropColumns!(Lasso_pt,string(col)); // 删了β
+                };
+                OLS_pt.append!(Lasso_pt);  // 合并数据
+                undef(`Lasso_pt); // 内存释放
+            };
+            
+            // Ridge预期收益率计算
+            if (Ridge_estimation==1){
+                pred_factor_Ridge=select factor_return_pred from factor_pt where class="R_Ridge" pivot by period,indicator; // 预测因子收益率(Ridge)
+                Ridge_pt=lj(slice_pt,pred_factor_Ridge,`period)
+                Ridge_pt[`method]="Ridge"; // 表示估计方法为OLS的因子收益率得到的个股收益率预测值
+                undef(`pred_factor_Ridge); // 内存释放
+                for (col in factor_list){
+                    Ridge_pt[string(col)+"_return_pred"]=Ridge_pt[col+"_alpha"]+Ridge_pt[col+"_factor_value"]*Ridge_pt[col]; // α+因子值*β
+                    dropColumns!(Ridge_pt,string(col)+"_factor_value"); // 删了因子值
+                    dropColumns!(Ridge_pt,string(col)+"_alpha");    // 删了alpha
+                    dropColumns!(Ridge_pt,string(col)); // 删了β
+                };
+                OLS_pt.append!(Ridge_pt);  // 合并数据
+                undef(`Ridge_pt); // 内存释放
+            };
+            
+            // ElasticNet预期收益率计算
+            if (ElasticNet_estimation==1){
+                pred_factor_ElasticNet=select factor_return_pred from factor_pt where class="R_ElasticNet" pivot by period,indicator; // 预测因子收益率(ElasticNet)
+                ElasticNet_pt = lj(slice_pt,pred_factor_ElasticNet,`period)
+                ElasticNet_pt[`method]="ElasticNet"; // 表示估计方法为OLS的因子收益率得到的个股收益率预测值
+                undef(`pred_factor_ElasticNet); // 内存释放
+                for (col in factor_list){
+                    ElasticNet_pt[string(col)+"_return_pred"]=ElasticNet_pt[col+"_alpha"]+ElasticNet_pt[col+"_factor_value"]*ElasticNet_pt[col]; // α+因子值*β
+                    dropColumns!(ElasticNet_pt,string(col)+"_factor_value"); // 删了因子值
+                    dropColumns!(ElasticNet_pt,string(col)+"_alpha");    // 删了alpha
+                    dropColumns!(ElasticNet_pt,string(col)); // 删了β
+                };
+                OLS_pt.append!(ElasticNet_pt);  // 合并数据
+                undef(`ElasticNet_pt); // 内存释放
+            };
+            // 添加至数据库
+            loadTable("dfs://asset_cn/Result/DayFreq20250806","individual_return").append!(OLS_pt);
+        }
+        undef(`OLS_pt`slice_pt`factor_pt); // 内存释放
+
+slice_t = select * from loadTable("dfs://asset_cn/Result/DayFreq20250806","individual") where symbol=="000001.SZ"
+
+x=NULL
+x+1
+
+t=exec distinct(index_code) from loadTable("dfs://DayKDB","o_tushare_index_weight") where trade_date == 2025.07.31
+
+t = select count(con_code) as count from loadTable("dfs://DayKDB","o_tushare_index_weight") group by trade_date order by trade_date
+
+
+pt = select ReturnInterval,period,class,indicator,value from loadTable("dfs://asset_cn/Result/DayFreq20250806","summary") 
+            where Benchmark=="b000852" and 
+            ReturnInterval == int(20) and 
+            class in ["RankIC","IC"]
+template_pt = select start_date as date,period from loadTable("dfs://asset_cn/Combine/DayFreq20250806","template")
+// 添加时间
+pt = lj(template_pt,pt,`period);
+update pt set yearInt = year(date);
+update pt set yearStr = "Year"+string(yearInt)
+pt = select * from pt context by year(date),month(date),class,indicator limit -1
+year_list = sort(exec distinct(yearInt) from pt)
+undef(`template_pt);
+        
+// avg(IC)
+TotalIC_pt = select avg(value) as Total from pt where class == "IC" group by indicator as factor
+sortBy!(TotalIC_pt,`factor)
+YearIC_pt = select avg(value) as value from pt where class == "IC" pivot by indicator as factor, yearStr
+YearIC_pt = sql(select=[sqlCol(`factor)].append!(sqlCol("Year"+string(year_list))), from=YearIC_pt).eval()
+TotalIC_pt = lj(TotalIC_pt, YearIC_pt, `factor)
+
+// 验证
+pt = select symbol,date,minute,period,open,close,
+            FutureReturn20,shio_avg20,shioStrong_avg20,shioWeak_avg20 
+            from loadTable("dfs://asset_cn/Combine/DayFreq20250806","combination") 
+            order by symbol,date,minute,period
+TotalIC = select corr(FutureReturn20,shio_avg20) as shio_avg20IC, 
+               corr(FutureReturn20,shioStrong_avg20) as shioStrong_avg20IC,
+               corr(FutureReturn20,shioWeak_avg20) as shioWeak_avg20IC
+               from pt
+               group by date order by date
+resIC = select avg(shio_avg20IC) as shio_avg20IC_avg,
+                avg(shioStrong_avg20IC) as shioStrong_avg20IC_avg,
+               avg(shioWeak_avg20IC) as shioWeak_avg20IC_avg 
+               from TotalIC
+t = select count(*) from loadTable("dfs://DayKDB","o_tushare_index_dailybasic") group by trade_date
