@@ -1,0 +1,62 @@
+{
+  // Basic Config
+  "start_date": "20170101",
+  "end_date": "20250430",
+  "callBackPeriod": 1,
+  "returnIntervals":[1,5,10,20], // 未来K日区间收益率
+  "Quantile": 5,
+  "data_path": "D:\\DolphinDB\\Project\\FactorBrick\\data",
+  "src_path": "D:\\DolphinDB\\Project\\FactorBrick\\src",
+
+  // K BAR DATABASE
+  "symbol_database": "dfs://asset_cn/ReturnModel",
+  "symbol_table": "DayFreqSymbol500",
+  "benchmark_database": "dfs://asset_cn/ReturnModel",
+  "benchmark_table": "DayFreqBenchmark500",
+  "benchmark_list": ["b000905"],
+
+  // FACTOR DATABASE
+  "factor_database": "dfs://asset_cn/factor",
+  "factor_table": "DayFreq500_20250820",
+  "factor_list": ["shio","shioStrong","shioWeak",
+  "shio_avg20","shioStrong_avg20","shioWeak_avg20",
+    "shio_std20","shioStrong_std20","shioWeak_std20"],
+
+  // COMBINE DATABASE
+  combine_database: "dfs://asset_cn/Combine", // 日频因子库
+  combine_table: "DayFreq500_20250820",
+
+  // RESULT DATABASE
+  result_database: "dfs://asset_cn/Result/DayFreq500_20250820",
+  SingleFactor_estimation: true,
+  MultiFactor_estimation: false,
+  Multi_Intercept: false,
+  Lasso_estimation: false,
+  Ridge_estimation: false,
+  ElatsicNet_estimation: false,
+  Ridge_lamdas: [0.001,0.01,0.1,10,100,1000],
+  Lasso_lamdas: [0.001,0.01,0.1,10,100,1000],
+  ElasticNet_lamdas: [0.001,0.01,0.1,10,100,1000],
+  Group_list: ["composition","LGB","XGB"],
+
+  // Model DataBase
+  model_database: "dfs://asset_cn/Model/DayFreq20250820",   // 模型预测收益率保存路径
+  Model_list: ["xgboost","lightgbm"],//["lightgbm","gbdt"], // 所选模型(详见model_config+pipeline中的mapping_dict)
+  Model_save_path: "D:\\DolphinDB\\Project\\FactorBrick\\model",
+
+  // OPTIMIZE DATABASE
+  SingleReturn_add: true,  // 新增: 单因子收益率是否添加入组合优化表
+  SingleReturn_method: "OLS", // 由于单因子最后的因子较多,限制添加一种估计方法 "OLS"/"Lasso"/"Ridge"/"ElasticNet"
+  MultiReturn_add: false,  // 新增: 多因子收益率是否添加入组合优化表
+  ModelReturn_add: true,  // 新增: 模型预测收益率是否添加入组合优化表
+  optimize_database: "dfs://asset_cn/Optimize/DayFreq20250806",
+  optstrategy_list: [
+    "L5S5_eq",
+    "L3S3_eq",
+    "L1S1_eq",
+    "L5S5_mv",
+    "L3S3_mv",
+    "L1S1_mv",
+    "Total_OPT"
+  ]
+}　

@@ -1117,7 +1117,7 @@ class ReturnModel_Backtest_mr:
 
 
 if __name__=="__main__":
-    from src.factor_func.Data_func_0730 import ReturnModel_Data as R
+    from src.factor_func.Data_func_0823 import ReturnModel_Data as R
     from src.factor_func.ReturnModel_func import FactorIC_pred,FactorR_pred,MultiFactorR_pred,Factor_slice,Asset_slice
     from src.factor_func.Optimize_func_riskfolio import execute_optimize
     from src.model_func.Model import *
@@ -1125,13 +1125,13 @@ if __name__=="__main__":
     session.connect("172.16.0.184",8001,"maxim","dyJmoc-tiznem-1figgu")
     pool=ddb.DBConnectionPool("172.16.0.184",8001,10,"maxim","dyJmoc-tiznem-1figgu")
 
-    with open(r".\config\returnmodel_config0730.json5", mode="r", encoding="UTF-8") as file:
+    with open(r".\config\returnmodel_config0823.json5", mode="r", encoding="UTF-8") as file:
         cfg = json5.load(file)
     F=ReturnModel_Backtest_mr(
         session=session,pool=pool,config=cfg,
         Symbol_prepareFunc=R.addDayFreqSymbol,
         Benchmark_prepareFunc=R.addDayFreqBenchmark,
-        Factor_prepareFunc=R.addLongFactor,
+        Factor_prepareFunc=R.addLongDayFreqFactorFromDayFreqData,
         Combine_prepareFunc=R.prepare_combine_data,
         FactorR_predictFunc=FactorR_pred,
         FactorIC_predictFunc=FactorIC_pred,
@@ -1150,8 +1150,8 @@ if __name__=="__main__":
     # F.add_FactorData()
 
     # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
-    F.init_CombineDataBase()
-    F.add_CombineData()
+    # F.init_CombineDataBase()
+    # F.add_CombineData()
     F.BackTest()
     # F.ModelTest()
     # F.Slice()
