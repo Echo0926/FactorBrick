@@ -1,0 +1,60 @@
+{
+  // Basic Config
+  "start_date": "20200101",
+  "end_date": "20250430",
+  "dailyFreq": true,
+  "callBackPeriod": 1,
+  "returnIntervals":[1,5,10,20], // 未来K日区间收益率
+  "Quantile": 10,
+  "dailyPnlLimit": 0.1, // 日涨跌停板(仅对dailyFreq=True时生效)
+  "useMinFreqPeriod": false,  // 是否将IC/回归法结果聚合至日频统计(仅对dailyFreq=False生效)
+  "data_path": "D:\\DolphinDB\\Project\\FactorBrick\\data",
+  "src_path": "D:\\DolphinDB\\Project\\FactorBrick\\src",
+
+  // K BAR DATABASE
+  "symbol_database": "dfs://asset_cn/ReturnModel",
+  "symbol_table": "DayFreqSymbol500",
+  "benchmark_database": "dfs://asset_cn/ReturnModel",
+  "benchmark_table": "DayFreqBenchmark500",
+  "benchmark_list": ["b000905"],
+
+  // FACTOR DATABASE
+  "factor_database": "dfs://Dayfactor",
+  "factor_table": "pt",
+  "factor_list": [
+    "shio",
+    "shio_avg20",
+    "shio_std20"
+    // "interDayReturn",  // 隔夜收益率
+//    "interDayReturn_avg20",
+//    "interDayReturn_std20",
+//    "turnoverRateDiff", // 隔夜换手率差值
+//    "turnoverRateDiff_avg20",
+//    "turnoverRateDiff_std20",
+//    "intraDayReturn", // 日内收益率
+//    "intraDayReturn_avg20",
+//    "intraDayReturn_std20",
+//    "interDayVolatilityReverse", // 日间反转-波动翻转因子
+//    "interDayVolatilityReverse_avg20",
+//    "interDayVolatilityReverse_std20",
+//    "interDayTurnoverRateReverse", // 日间反转-换手翻转因子
+//    "interDayTurnoverRateReverse_avg20",
+//    "interDayTurnoverRateReverse_std20",
+//    "intraDayVolatilityReverse", // 日内反转-波动翻转因子
+//    "intraDayVolatilityReverse_avg20",
+//    "intraDayVolatilityReverse_std20",
+//    "intraDayTurnoverRateReverse", // 日内反转-换手翻转因子
+//    "intraDayTurnoverRateReverse_avg20",
+//    "intraDayTurnoverRateReverse_std20"
+  ],
+
+  // COMBINE DATABASE
+  combine_database: "dfs://asset_cn/Combine", // 日频因子库
+  combine_table: "DayFreq500_20250823",
+  "idCol": "symbol",
+  "barReturnCol": "BarReturn",  // CombineDataBase的列名
+  "futureReturnCols": ["FutureReturn1","FutureReturn5","FutureReturn10","FutureReturn20"], // CombineDataBase的列名
+
+  // RESULT DATABASE
+  result_database: "dfs://asset_cn/Result/DayFreq500_20250823",
+}　

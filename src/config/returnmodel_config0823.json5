@@ -16,7 +16,7 @@
   "benchmark_list": ["b000905"],
 
   // FACTOR DATABASE
-  "factor_database": "dfs://asset_cn/factor",
+  "factor_database": "dfs://asset_cn/SymbolFactor",
   "factor_table": "DayFreq500_20250823",
   "factor_list": ["interDayReturn",  // 隔夜收益率
     "interDayReturn_avg20",

@@ -13,76 +13,9 @@ import json
 ReturnModel:
 symbol date price(标的价格) marketvalue(市值) state(交易状态) industry benchmark1...N(基准指数) period(调仓周期) Factor1...FactorN(因子)
 """
-def modify_code(code_list):
-    "将1补全为000001"
-    L=[]
-    for code in code_list:
-        if len(str(code))<6:
-            code="0"*(6-len(str(code)))+str(code)   # 1→000001
-        L.append(str(code))
-    return L
 
-class ReturnModel_Data:
-    """准备ReturnModel的数据"""
-
-    def addDayFreqSymbol(self: ReturnModel_Backtest):
-        self.session.run(rf"""
-        idx_code = "000905.SH"//"399300.SZ" // 指数名称
-        start_ts, end_ts = date({self.start_dot_date}), date({self.end_dot_date});
-         code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") where index_code == idx_code; 
-        // 行情数据+是否停牌数据(0/1,该字段当前未使用,之后需要加入回测框架中)
-        pt = select ts_code as SecurityID, trade_date as TradeDate,1500 as minute,open * adj_factor as open,close * adj_factor as close,1.0 as state 
-        from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") where trade_date between start_ts and end_ts and ts_code in code_list; 
-        
-        // 市值数据+行业数据
-        mv_pt = select ts_code as SecurityID,trade_date as TradeDate,circ_mv as cmarketvalue, ts_code_exchange as industry 
-        from loadTable("dfs://DayKDB","o_tushare_a_stock_daily_basic") where trade_date between start_ts and end_ts;
-        pt = lj(pt,mv_pt, `TradeDate`SecurityID);
-        undef(`mv_pt);
-
-        // 添加至数据库中
-        pt = select SecurityID,TradeDate,minute,open,close,cmarketvalue,state,industry from pt;
-        loadTable("{self.symbol_database}","{self.symbol_table}").append!(pt);
-        """)
-
-    def addMinFreqSymbol(self: ReturnModel_Backtest):
-        """[自定义]标的价格选取及计算(必须包括state列表示当天该标的能否交易)
-        symbol date price state industry
-        """
-        self.session.run(rf"""
-        idx_code = "000905.SH"//"399300.SZ" // 指数名称
-        start_ts, end_ts = date({self.start_dot_date}), date({self.end_dot_date});
-        code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") where index_code == idx_code; 
-        // 行情数据+是否停牌数据(0/1,该字段当前未使用,之后需要加入回测框架中)
-        pt = select SecurityID,TradeDate,
-        int(string(TradeTime.hourOfDay())+lpad(string(TradeTime.minuteOfHour()),2,"0")) as minute,open,close,1.0 as state 
-        from loadTable("dfs://MinKDB","Min1K") where tradeDate between start_ts and end_ts and code in code_list;
-            
-        // 市值数据+行业数据
-        mv_pt = select ts_code as SecurityID,trade_date as TradeDate,circ_mv as cmarketvalue, ts_code_exchange as industry 
-        from loadTable("dfs://DayKDB","o_tushare_a_stock_daily_basic") where trade_date between start_ts and end_ts and ts_code in code_list;
-        pt = lj(pt,mv_pt, `TradeDate`SecurityID);
-        undef(`mv_pt);
-            
-        // 添加至数据库中
-        pt = select SecurityID,TradeDate,minute,open,close,cmarketvalue,state,industry from pt;
-        loadTable("{self.symbol_database}","{self.symbol_table}").append!(pt);
-        """)
-
-    def addDayFreqBenchmark(self: ReturnModel_Backtest):
-        """[自定义]基准收益池选取及计算
-        [注] `000001这种不能直接作为列名，因而在前面加上b以示区分
-        """
-        self.session.run(rf"""
-        // 指数行情数据,   
-        idx_code = "000905.SH"//"399300.SZ"
-        pt=select idx_code as symbol,trade_date as date,1500 as minute,open,close from loadTable("dfs://DayKDB","o_tushare_index_kline_daily") where ts_code = idx_code ;
-        loadTable('{self.benchmark_database}','{self.benchmark_table}').append!(pt);
-        undef(`pt);
-        """)
-
-    # DayFreq Data -> Day Factor
-    def addLongDayFreqFactorFromDayFreqData(self: ReturnModel_Backtest):
+# DayFreq Data -> Day Factor
+def addLongDayFreqFactorFromDayFreqData(self: ReturnModel_Backtest):
         self.session.run(f"""
         factor_list = {self.factor_list};
         idx_code = "000905.SH"//"399300.SZ";

@@ -81,7 +81,7 @@ class ReturnModel_Data:
         undef(`pt);
         """)
 
-    def addLongFactor(self: ReturnModel_Backtest):
+    def addLongFactorFromMinFreqData(self: ReturnModel_Backtest):
         """[自定义]Alpha因子计算并存储至因子数据库(宽表形式)"""
         self.session.run(f"""        
         idx_code = "000905.SH"//"399300.SZ";
@@ -183,7 +183,9 @@ class ReturnModel_Data:
         }}
         
         // pt = mr(ds, component).unionAll(false) // MapReduce操作
+        print("start calculating factor")
         pt = FactorMap(data);
+        print("end calculating factor")
         
         // 添加至数据库
         def InsertData(DBName, TBName, data, batchsize){{
@@ -195,6 +197,7 @@ class ReturnModel_Data:
                 slice_data = data[start_idx:min(end_idx,krow),]
                 if (rows(slice_data)>0){{
                 loadTable(DBName, TBName).append!(slice_data);
+                print(start_idx);
                 }}
                 start_idx = start_idx + batchsize
                 end_idx = end_idx + batchsize
