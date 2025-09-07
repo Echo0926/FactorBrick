@@ -526,6 +526,6 @@ if __name__=="__main__":
     # F.add_BenchmarkData()
 
     # 如果原始数据没有变化，那么不用运行init_CombineDatabase()与add_CombineData()
-    # F.init_CombineDataBase(dropDataBase=True)
-    # F.add_CombineData()
+    F.init_CombineDataBase(dropDataBase=True)
+    F.add_CombineData()
     F.BackTest()

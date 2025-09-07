@@ -8,10 +8,12 @@ def addDayFreqSymbol1000(self: SingleFactorBackTest):
     idx_code = "000852.SH" // 指数名称
     start_ts, end_ts = date({self.start_dot_date}), date({self.end_dot_date});
     code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") 
-                where index_code == idx_code; 
+                where index_code == idx_code and (trade_date between start_ts and end_ts); 
     // 行情数据+是否停牌数据(0/1,该字段当前未使用,之后需要加入回测框架中)
-    pt = select ts_code as SecurityID, trade_date as TradeDate,15:00:00.000 as TradeTime,open * adj_factor as open,close * adj_factor as close,1.0 as state 
-    from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") where trade_date between start_ts and end_ts and ts_code in code_list; 
+    pt = select ts_code as SecurityID, trade_date as TradeDate,15:00:00.000 as TradeTime,
+            open * adj_factor as open,close * adj_factor as close,1.0 as state 
+            from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") 
+            where (trade_date between start_ts and end_ts) and ts_code in code_list; 
 
     // 市值数据+行业数据
     mv_pt = select ts_code as SecurityID,trade_date as TradeDate,circ_mv as cmarketvalue, ts_code_exchange as industry 
@@ -42,12 +44,12 @@ def addDayFreqSymbol500(self: SingleFactorBackTest):
     idx_code = "000905.SH" // 指数名称
     start_ts, end_ts = date({self.start_dot_date}), date({self.end_dot_date});
     code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") 
-                where index_code == idx_code; 
+                where index_code == idx_code and (trade_date between start_ts and end_ts); 
     // 行情数据+是否停牌数据(0/1,该字段当前未使用,之后需要加入回测框架中)
     pt = select ts_code as SecurityID, trade_date as TradeDate,15:00:00.000 as TradeTime,
                 open * adj_factor as open,close * adj_factor as close,1.0 as state 
                 from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") 
-                where trade_date between start_ts and end_ts and ts_code in code_list; 
+                where (trade_date between start_ts and end_ts) and ts_code in code_list; 
 
     // 市值数据+行业数据
     mv_pt = select ts_code as SecurityID,trade_date as TradeDate,circ_mv as cmarketvalue, ts_code_exchange as industry 
@@ -78,12 +80,12 @@ def addDayFreqSymbol300(self: SingleFactorBackTest):
        idx_code = "399300.SZ" // 指数名称
        start_ts, end_ts = date({self.start_dot_date}), date({self.end_dot_date});
        code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") 
-                   where index_code == idx_code; 
+                   where index_code == idx_code and (trade_date between start_ts and end_ts); 
        // 行情数据+是否停牌数据(0/1,该字段当前未使用,之后需要加入回测框架中)
-       pt = select ts_code as SecurityID, trade_date as TradeDate,1500 as TradeTime,
+       pt = select ts_code as SecurityID, trade_date as TradeDate,15:00:00.000 as TradeTime,
             open * adj_factor as open,close * adj_factor as close,1.0 as state 
             from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") 
-            where trade_date between start_ts and end_ts and ts_code in code_list; 
+            where (trade_date between start_ts and end_ts) and ts_code in code_list; 
 
        // 市值数据+行业数据
        mv_pt = select ts_code as SecurityID,trade_date as TradeDate,circ_mv as cmarketvalue, ts_code_exchange as industry 

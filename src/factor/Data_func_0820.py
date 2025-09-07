@@ -146,7 +146,6 @@ class ReturnModel_Data:
             update pt set vwap = nullFill!(turnover/volume,0);
             update pt set mVol = msum(volume,9) context by symbol, date
             update pt set mVol = move(mVol,4) context by symbol, date
-            // update pt set mVOL = (nullFill(move(volume,4),0)+nullFill(move(volume,3),0)+nullFill(move(volume,2),0)+nullFill(move(volume,1),0)+volume+nullFill(move(volume,-1),0)+nullFill(move(volume,-2),0)+nullFill(move(volume,-3),0)+nullFill(move(volume,-4),0)) context by symbol;
             pt = select shioFunc(mVol, close) as shio, 
                         shioStrongFunc(mVol, close) as shioStrong,
                         shioWeakFunc(mVol, close) as shioWeak

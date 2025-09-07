@@ -23,7 +23,7 @@ def Combine(self: SingleFactorBackTest):
         
     def ReturnCalFunc(df, periodSize, idCol, timeCol, openCol, closeCol){{
         /* 不同周期的收益率计算函数 */
-        expr = "(move(close,-periodSize)-open)/open"
+        expr = "(move(close,-(periodSize+1))-next(open))/next(open)"
         expr = strReplace(
                     strReplace(
                         strReplace(expr, "close", closeCol),
@@ -39,16 +39,28 @@ def Combine(self: SingleFactorBackTest):
     # 拿数据
     self.session.run(rf"""
     // 最后的数据格式: symbol,TradeDate,TradeTime,BarReturn,FutureReturn,factor_list
+    // idx_code = "000852.SH" // 1000
+    idx_code = "000905.SH" // 500
+    // idx_code = "399300.SZ" // 300
+     code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") 
+                where index_code == idx_code and (trade_date between {self.start_dot_date} and {self.end_dot_date});
+    
     
     // 行情数据(若需要Benchmark可自行添加)
     symbol_df = select symbol,TradeDate,TradeTime,
                 concatDateTime(TradeDate,TradeTime) as timeForCal,
                 open,close // ,marketvalue,industry 
                 from loadTable("{self.symbol_database}","{self.symbol_table}") 
-                where TradeDate between date({self.start_dot_date}) and date({self.end_dot_date});
+                where symbol in code_list and (TradeDate between date({self.start_dot_date}) and date({self.end_dot_date}));
     sortBy!(symbol_df,`timeForCal);
     symbol_list = exec distinct(symbol) from symbol_df;
     
+    // 指数数据
+    index_df = select con_code as symbol,trade_date as TradeDate from loadTable("dfs://DayKDB","o_tushare_index_weight") 
+                where index_code == idx_code 
+                and (trade_date between date({self.start_dot_date}) and temporalAdd(date({self.end_dot_date}), 1 ,"XSHG")); // 成分股信息
+    symbol_list = exec distinct(symbol) as component from index_df;
+                
     idCol = `symbol;
     timeCol = `timeForCal;
     openCol = `open;
@@ -62,30 +74,53 @@ def Combine(self: SingleFactorBackTest):
         interval = returnIntervals[i]
         symbol_df = lj(symbol_df, res_list[i], matchingCols)
     }}
-    update symbol_df set barReturn = next(close)-close\close context by symbol;
+    update symbol_df set barReturn = (next(close)-close)\close context by symbol;
+    
+    // left Join
+    // 补全index_df
+    total_date_list = getMarketCalendar("XSHG", date({self.start_dot_date}), temporalAdd(date({self.end_dot_date}), 1 ,"XSHG"))
+    current_date_list = sort(exec distinct(TradeDate) from index_df);
+    last_date = current_date_list[0]
+    for (i in 1..size(total_date_list)-1){{
+        ts = total_date_list[i]
+        if (!(ts in current_date_list)){{
+            // 离他最近比它小的date
+            index_df.append!(select symbol, ts as `TradeDate from index_df where TradeDate == last_date)      
+        }}else{{
+            last_date = ts
+        }}
+    }}
+    sortBy!(index_df,`TradeDate`symbol,[1,1]);
+    update index_df set indexState = 1.0; 
+    symbol_df = select * from lsj(symbol_df, index_df, `TradeDate`symbol) where indexState==1.0;
+    dropColumns!(symbol_df,`indexState);
     
     // 因子数据
     factor_list = {self.factor_list};
     if ({int(self.dailyFreq)}==1){{
-        factor_df = select value from loadTable("{self.factor_database}","{self.factor_table}") 
+        factor_df = select * from loadTable("{self.factor_database}","{self.factor_table}") 
             where (date between {self.start_dot_date} and {self.end_dot_date}) 
             and factor in {self.factor_list} and symbol in symbol_list
-            pivot by date as TradeDate,symbol,factor;
+        // 截面空值填充
+        update factor_df set value = nullFill(value,avg(value)) context by date,factor;
+        factor_df = select value from factor_df pivot by date as TradeDate,symbol,factor;
         update factor_df set TradeTime = 15:00:00.000;
         matchingCols = ["symbol","TradeDate"];
     }}
     else{{
-        factor_df = select value from loadTable("{self.factor_database}","{self.factor_table}") 
+        factor_df = select * from loadTable("{self.factor_database}","{self.factor_table}") 
             where (date between {self.start_dot_date} and {self.end_dot_date}) 
             and factor in {self.factor_list} and symbol in symbol_list
-            pivot by date as TradeDate, time as TradeTime,symbol,factor;
+        // 截面空值填充
+        update factor_df set value = nullFill(value,avg(value)) context by date,time,factor;
+        factor_df = select value from factor_df pivot by date as TradeDate, time as TradeTime,symbol,factor;
         matchingCols = ["symbol","TradeDate","TradeTime"]
     }}
     symbol_df = lsj(symbol_df, factor_df, matchingCols);
     
     // 添加period
     time_list = sort(exec distinct(timeForCal) from symbol_df, true)
-    time_dict = dict(time_list, cumsum(1..size(time_list)))
+    time_dict = dict(time_list, 1..size(time_list))
     symbol_df[`period] = int(time_dict[symbol_df[`timeForCal]]);
     
     // 最终数据

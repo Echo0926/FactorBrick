@@ -1,0 +1,156 @@
+// 生成收益率表(日频)
+index_t = select first(create_time) as create_time from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") group by trade_date, ts_code order by trade_date
+
+// 生成收益率表(分钟频)-批处理
+// 定义最高价最低价计算函数
+defg high(DeltasHighPrice, HighPrice, LastPrice){
+	// DeltasHighPrice: 同一标的两笔相邻快照的当日累计最高价(HighPrice)的差
+    // HighPrice：快照行情的当日最高价
+    // LastPrice：快照行情的当前最新价
+    /*
+    1分钟K线计算窗口内：
+    1. 如果两笔相邻快照的当日最高价发生变化，则一分钟K线的最高价 = 当日最高价的最大值
+    2. 如果两笔相邻快照的当日最高价没有发生变化，则一分钟K线的最高价 = 当日最新价的最大值
+    */
+    sumDeltas = sum(DeltasHighPrice)
+    if(sumDeltas > 0.000001 and sumDeltas!=NULL){
+		return max(HighPrice)
+	}
+	else{
+		return max(LastPrice)
+	}
+}
+
+defg low(DeltasLowPrice, LowPrice, LastPrice){
+	// DeltasLowPrice: 同一只标的两笔相邻快照的当日最低价的差
+    // LowPrice: 快照行情的当日最低价
+    // LastPrice: 快照行情的当日最新价
+    /*
+    1分钟计算窗口内：
+    1. 相邻快照的当日最低价发生变化：分钟K线最低价 = 当日最低价的最小值
+    2. 相邻快照的当日最低价没有发生变化：分钟K线最低价 = 当日最新价的最小值
+    3. 
+    */
+    sumDeltas = sum(DeltasLowPrice)
+	if(sumDeltas<-0.000001 and sumDeltas!=NULL){
+		return min(iif(LowPrice==0.0, NULL, LowPrice))
+	}
+	else{
+		return min(LastPrice)
+	}
+}
+
+def getMinuteKBar(Day){
+    /* 不使用Map-Reduce方式 */
+    snapshotTB = select concatDateTime(trade_date, trade_time) as TradeTime,wind_code as SecurityID, 
+    opening_price as OpenPrice, highest_price as HighPrice, lowest_price as LowPrice, transaction_price as LastPrice, previous_closing_price as PreCloPrice,IOPV,
+    daily_cumulative_volume as TotalVolumeTrade, daily_transaction_amount as TotalValueTrade, transaction_count as NumTrades
+    from loadTable("dfs://WindL2DB","snapshots") where trade_date =Day;
+
+    tempTB = select TradeTime.date() as TradeDate,iif(TradeTime.time()<=09:30:00.000, 09:30:00.000, TradeTime.time()) as TradeTime, // 将小于09:30m的数据划分到09:30作为第一根K线的数据
+    SecurityID,PreCloPrice,OpenPrice,HighPrice,LowPrice,LastPrice,IOPV,
+    iif(deltas(HighPrice)>0.000001, 1, 0) as DeltasHighPrice,// 预防Double类型计算导致的偏差
+    iif(abs(deltas(LowPrice))>0.000001, -1, 0) as DeltasLowPrice,
+    iif(deltas(TotalVolumeTrade)==NULL, TotalVolumeTrade, deltas(TotalVolumeTrade)) as DeltasVolume, // 预防第一个数据delta产生的NULL值
+    iif(deltas(TotalValueTrade)==NULL, TotalValueTrade, deltas(TotalValueTrade)) as DeltasTurnover,
+    iif(deltas(NumTrades)==NULL, NumTrades, deltas(NumTrades)) as DeltasTradesCount
+    from snapshotTB
+    where TradeTime.time() >=09:25:00.000
+    context by SecurityID order by TradeTime
+
+    windowTB = select firstNot(LastPrice, 0) as OpenPrice, 
+            high(DeltasHighPrice, HighPrice, LastPrice) as HighPrice,
+            low(DeltasLowPrice, LowPrice, LastPrice) as LowPrice,
+            last(LastPrice) as ClosePrice,
+            sum(DeltasVolume) as Volume,
+            sum(DeltasTurnover) as Turnover,
+            sum(DeltasTradesCount) as TradesCount,
+            last(PreCloPrice) as PreClosePrice,
+            last(IOPV) as IOPV,
+            lastNot(LastPrice, 0)\firstNot(LastPrice, 0)-1 as FirstBarChangeRate	
+            from tempTB
+            group by SecurityID, TradeDate, interval(X=TradeTime, duration=60s, label='left', fill=0) as TradeTime
+    return windowTB
+}
+
+def getMinuteKBarMap(snapshotTB){
+    // MapReduce方式
+    tempTB = select TradeTime.date() as TradeDate,iif(TradeTime.time()<=09:30:00.000, 09:30:00.000, TradeTime.time()) as TradeTime, // 将小于09:30m的数据划分到09:30作为第一根K线的数据
+    SecurityID,PreCloPrice,OpenPrice,HighPrice,LowPrice,LastPrice,IOPV,
+    iif(deltas(HighPrice)>0.000001, 1, 0) as DeltasHighPrice,// 预防Double类型计算导致的偏差
+    iif(abs(deltas(LowPrice))>0.000001, -1, 0) as DeltasLowPrice,
+    iif(deltas(TotalVolumeTrade)==NULL, TotalVolumeTrade, deltas(TotalVolumeTrade)) as DeltasVolume, // 预防第一个数据delta产生的NULL值
+    iif(deltas(TotalValueTrade)==NULL, TotalValueTrade, deltas(TotalValueTrade)) as DeltasTurnover,
+    iif(deltas(NumTrades)==NULL, NumTrades, deltas(NumTrades)) as DeltasTradesCount
+    from snapshotTB
+    where TradeTime.time() >=09:25:00.000
+    context by SecurityID order by TradeTime
+
+    windowTB = select firstNot(LastPrice, 0) as OpenPrice, 
+            high(DeltasHighPrice, HighPrice, LastPrice) as HighPrice,
+            low(DeltasLowPrice, LowPrice, LastPrice) as LowPrice,
+            last(LastPrice) as ClosePrice,
+            sum(DeltasVolume) as Volume,
+            sum(DeltasTurnover) as Turnover,
+            sum(DeltasTradesCount) as TradesCount,
+            last(PreCloPrice) as PreClosePrice,
+            last(IOPV) as IOPV,
+            lastNot(LastPrice, 0)\firstNot(LastPrice, 0)-1 as FirstBarChangeRate	
+            from tempTB
+            group by SecurityID, TradeDate, interval(X=TradeTime, duration=60s, label='left', fill=0) as TradeTime
+    return windowTB
+
+}
+
+def getMinuteKBar_mr(startDate, endDate){
+    // MapReduce方式进行并行化运算
+    resTB = mr(sqlDS(<select concatDateTime(trade_date, trade_time) as TradeTime,wind_code as SecurityID, 
+    opening_price as OpenPrice, highest_price as HighPrice, lowest_price as LowPrice, transaction_price as LastPrice, previous_closing_price as PreCloPrice,IOPV,
+    daily_cumulative_volume as TotalVolumeTrade, daily_transaction_amount as TotalValueTrade, transaction_count as NumTrades
+    from loadTable("dfs://WindL2DB","snapshots") where trade_date between startDate and endDate>),getMinuteKBarMap, , unionAll)
+    return resTB
+}
+
+// // 分钟频K线结果验证
+// MinFreqK = select * from getMinuteKBar(Day=2017.01.03) where SecurityID = "000001.SZ"
+// print(sum(MinFreqK["Volume"]))
+// MinFreqK_mr = select * from getMinuteKBar_mr(startDate=2017.01.03, endDate=2017.01.03) where SecurityID = "000001.SZ"
+// print(sum(MinFreqK_mr["volume"]))
+// DayFreqK = select * from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") where trade_date = 2017.01.03 and ts_code = "000001.SZ"
+// print(DayFreqK["volume"])
+
+// 分钟频结果数据库创建MinKDB
+def init_MinuteKDB(DBName,TBName,dropDB){
+    // Symbol数据库
+    if (dropDB==true){
+        if (existsDatabase(DBName)){
+            dropDatabase(DBName)
+        }
+    }
+    if (existsTable(DBName,TBName)){
+        dropTable(database(DBName),TBName)
+    }
+    db1=database(,RANGE,2000.01M+(0..30)*12)
+    db2=database(,HASH,[SYMBOL,50])
+    db =database(DBName, COMPO, [db1, db2], engine="TSDB")
+    schemaTb=table(1:0,`SecurityID`TradeDate`TradeTime`open`high`low`close`volume`turnover`TradesCount`PreClosePrice,
+    [SYMBOL,DATE,TIME,DOUBLE,DOUBLE,DOUBLE,DOUBLE,LONG,DOUBLE,INT,DOUBLE]);
+    t=db.createPartitionedTable(table=schemaTb,tableName=TBName,partitionColumns=`TradeDate`SecurityID,sortColumns=["SecurityID","TradeDate","TradeTime"],keepDuplicates=LAST)
+}
+
+
+// 合成分钟频K线行情数据并添加至数据库中
+startDate = 2025.04.03
+endDate = 2025.04.30
+DBName = "dfs://MinuteKDB"
+TBName = "stock_bar"
+dropDB = false
+// init_MinuteKDB(DBName,TBName,dropDB)
+def add_MinuteKDB(DBName,TBName,startDate,endDate){
+    for (day in getMarketCalendar("SSE",startDate,endDate)){
+        MinFreqK_mr = select SecurityID, TradeDate, TradeTime, OpenPrice, HighPrice, LowPrice, ClosePrice, Volume, Turnover, TradesCount, PreClosePrice from getMinuteKBar_mr(startDate=day, endDate=day)
+        loadTable(DBName,TBName).append!(MinFreqK_mr)
+        print(day)
+    }
+}
+add_MinuteKDB(DBName,TBName,startDate,endDate)

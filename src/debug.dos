@@ -1,0 +1,148 @@
+ // 第一次left join
+        // 配置项
+        start_date = 2020.01.01;
+        end_date = 2025.04.30;
+        ldbName = "dfs://MinKDB";
+        ltbName = "Min1K";
+        rdbName = "dfs://DayKDB";
+        rtbName = "o_tushare_a_stock_daily";
+        lsymbolCol = "code";
+        ldateCol = "tradeDate";
+        ltimeCol = "tradeTime";
+        rsymbolCol = "ts_code";
+        rdateCol = "trade_date";
+        rtimeCol = "NA";
+        // 首先确定matchingCols ->左右表均不为NA的列名
+        leftIdxCols = array(STRING,0);
+        rightIdxCols = array(STRING,0);
+        matchingCols = array(STRING,0);
+        if (ldateCol!="NA" and rdateCol!="NA"){
+            leftIdxCols.append!(ldateCol);
+            rightIdxCols.append!(rdateCol);
+            matchingCols.append!("TradeDate");
+        };
+        if (ltimeCol!="NA" and rtimeCol!="NA"){
+            leftIdxCols.append!(ltimeCol);
+            rightIdxCols.append!(rtimeCol);
+            matchingCols.append!("TradeTime");
+        };
+        if (lsymbolCol!="NA" and rsymbolCol!="NA"){
+            leftIdxCols.append!(lsymbolCol);
+            rightIdxCols.append!(rsymbolCol);
+            matchingCols.append!("symbol");
+        };
+        lindicator_dict = {'stockMin1KBar_open': 'open', 'stockMin1KBar_close': 'close', 'stockMin1KBar_volume': 'volume', 'stockMin1KBar_amount': 'amount'};
+        rindicator_dict = {'stockDayKBar_open': 'open', 'stockDayKBar_close': 'close'};
+        lnames = matchingCols.copy().append!(string(lindicator_dict.keys()));
+        lselects = leftIdxCols.copy().append!(string(lindicator_dict.values()));
+        rnames = matchingCols.copy().append!(string(rindicator_dict.keys()));
+        rselects = rightIdxCols.copy().append!(string(rindicator_dict.values()));
+
+        if (ldateCol!="NA"){
+            leftTable = <select _$$lselects as _$$lnames from loadTable(ldbName, ltbName) where _$ldateCol between start_date and end_date>.eval()              
+        }else{
+            leftTable = <select _$$lselects as _$$lnames from loadTable(ldbName, ltbName)>.eval()          
+        }
+        if (rdateCol!="NA"){
+            rightTable = <select _$$rselects as _$$rnames from loadTable(rdbName, rtbName) where _$rdateCol between start_date and end_date>.eval()              
+        }else{
+            rightTable = <select _$$rselects as _$$rnames from loadTable(rdbName, rtbName)>.eval()          
+        };        
+        df = lsj(leftTable, rightTable, matchingCols);     
+        
+    update df set vwap = nullFill(stockMin1KBar_amount/stockMin1KBar_volume,0);
+    update df set mVol = msum(stockMin1KBar_volume,9) context by symbol, TradeDate
+    update df set mVol = move(mVol,4) context by symbol, TradeDate
+    
+    defg shioFunc(mvol, price){ // defg 聚合函数声明
+        idx_max = imax(mvol);
+        priceList_m = price[:idx_max]
+        idx_m = imin(priceList_m) 
+        priceList_n = price[idx_max+1:]
+        idx_n = imin(priceList_n)
+        Cm = price[idx_m]
+        Cn = price[idx_n]
+        res = (Cn-Cm)\(Cm)\(idx_n-idx_m)
+        return res
+    };
+    
+    middle = select shioFunc(mVol, stockMin1KBar_close) as shio from df 
+                        group by TradeDate, symbol order by TradeDate;
+
+    /*比较因子值 */
+
+
+    // dateCol,symbolCol,factorName
+    data = select symbol,TradeDate,"shio" as `factor,shio from middle;
+    factorDict["shio"] = data; // 丢进因子数据变量
+    print("因子shio计算完毕");
+    
+    defg shioStrongFunc(mvol, price){ // defg聚合函数声明
+        idx_max = imax(mvol);
+        Cmax = price[idx_max];
+        priceList_m = price[:idx_max]
+        idx_m = imin(priceList_m) 
+        priceList_n = price[idx_max+1:]
+        idx_n = imin(priceList_n)
+        Cm = price[idx_m]
+        Cn = price[idx_n]
+        Vm = mvol[idx_m]
+        Vn = mvol[idx_n]
+        res = iif(Vm<Vn, (Cmax-Cm)\Cm\(idx_max-idx_m), (Cn-Cmax)\Cmax\(idx_n-idx_max))
+        return res
+        };
+    
+    middle = select shioStrongFunc(mVol, stockMin1KBar_close) as shioStrong from df 
+                        group by TradeDate, symbol order by TradeDate;
+    // dateCol,symbolCol,factorName
+    data = select symbol,TradeDate,"shioStrong" as `factor,shioStrong from middle;
+    factorDict["shioStrong"] = data; // 丢进因子数据变量
+    print("因子shioStrong计算完毕");
+    
+    middle = factorDict["shio"];
+    update middle set shio_avg20 = mavg(shio,20) context by symbol;
+    data = select symbol,TradeDate,"shio_avg20" as `factor,shio_avg20 from middle;
+    factorDict["shio_avg20"] = data;  // 丢进因子数据变量
+    print("因子shio_avg20计算完毕");
+    
+    middle = factorDict["shio"];
+    update middle set shio_std20 = mstd(shio,20) context by symbol;
+    data = select symbol,TradeDate,"shio_std20" as `factor,shio_std20 from middle;
+    factorDict["shio_std20"] = data;  // 丢进因子数据变量
+    print("因子shio_std20计算完毕");
+    
+    middle = factorDict["shioStrong"];
+    update middle set shioStrong_avg20 = mavg(shioStrong,20) context by symbol;
+    data = select symbol,TradeDate,"shioStrong_avg20" as `factor,shioStrong_avg20 from middle;
+    factorDict["shioStrong_avg20"] = data;  // 丢进因子数据变量
+    print("因子shioStrong_avg20计算完毕");
+    
+    middle = factorDict["shioStrong"];
+    update middle set shioStrong_std20 = mstd(shioStrong,20) context by symbol;
+    data = select symbol,TradeDate,"shioStrong_std20" as `factor,shioStrong_std20 from middle;
+    factorDict["shioStrong_std20"] = data;  // 丢进因子数据变量
+    print("因子shioStrong_std20计算完毕");
+                
+            day_factor_need = ['shio', 'shioStrong', 'shio_avg20', 'shio_std20', 'shioStrong_avg20', 'shioStrong_std20'];  // 所有需要添加至日频因子数据库的因子列表
+            min_factor_need = [];  // 所有需要添加至分钟频因子数据库的因子列表
+            // 先向数据库添加指定分区
+            if (size(day_factor_need)>0){
+                addValuePartitions(database("dfs://Dayfactor"),day_factor_need,1); // 添加至COMPO分区的第一层
+            }
+            if (size(min_factor_need)>0){
+                addValuePartitions(database("dfs://Minfactor"),min_factor_need,1); // 添加至COMPO分区的第一层
+            }            
+            for (factor in day_factor_need){
+                print(select * from factorDict[factor] limit 10)
+                InsertDayFactor(factorDict[factor],1000000); 
+                print("日频因子"+factor+"Insert完毕");
+            };
+            for (factor in min_factor_need){
+                InsertMinFactor(factorDict[factor],1000000);
+                print("分钟频因子"+factor+"Insert完毕");
+            }
+
+// 检查IC算的对不对
+totalData = select symbol, TradeDate, TradeTime, FutureReturn20,shio as `factor from loadTable("dfs://asset_cn/Combine","DayFreq500_20250823") 
+df = select corr(FutureReturn20,factor) as IC from totalData group by TradeDate order by TradeDate;
+print(avg(df[`IC]))

@@ -1,0 +1,87 @@
+// 更新300/500/1000的指数成分股行情数据
+def initKBarDataBase(dbName, tbName, dropDB, dropTB){
+    if (dropDB){
+        try{dropDatabase(dbName)}catch(ex){}
+    }
+    if (dropTB){
+        try{dropTable(database(dbName), tbName)}catch(ex){}
+    }
+    db = database(dbName, VALUE, 2010.01M..2030.01M, engine="TSDB");
+    if (!existsTable(dbName, tbName)){
+        schemaTb = table(1:0, [`symbol,`TradeDate,`TradeTime,
+        `open,`high,`low,`close,`volume,`amount],[SYMBOL,DATE,TIME,DOUBLE,DOUBLE,DOUBLE,DOUBLE,LONG,DOUBLE]
+        )
+        db.createPartitionedTable(schemaTb, tbName, 
+            partitionColumns=`TradeDate, sortColumns=`symbol`TradeTime`TradeDate,
+            keepDuplicates=LAST)
+    }
+}
+def InsertData(DBName, TBName, data, batchsize){
+    // 预防Out of Memory，分批插入数据，batchsize为每次数据的记录数
+    start_idx = 0
+    end_idx = batchsize
+    krow = rows(data)
+    do{
+        slice_data = data[start_idx:min(end_idx,krow),]
+        if (rows(slice_data)>0){
+        loadTable(DBName, TBName).append!(slice_data);
+        print(start_idx);
+        }
+        start_idx = start_idx + batchsize
+        end_idx = end_idx + batchsize
+    }while(start_idx < krow)
+};
+def addDayKBarData(idx_code, startDate, endDate, targetDB, targetTB){
+    // 插入对应的指数成分股日频行情数据
+    code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") 
+                where index_code == idx_code and (trade_date between startDate and endDate)
+    // 行情数据
+    pt = select ts_code as SecurityID, trade_date as TradeDate,15:00:00.000 as TradeTime,
+            open * adj_factor as open, high * adj_factor as high, low * adj_factor as low, close * adj_factor as close, 
+                long(volume) as volume, double(amount) as amount
+            from loadTable("dfs://DayKDB","o_tushare_a_stock_daily") 
+            where (trade_date between startDate and endDate) and ts_code in code_list;  
+    InsertData(targetDB, targetTB, pt, 1000000);
+}
+def addMinKBarData(idx_code, startDate, endDate, targetDB, targetTB){
+    // 插入对应的指数成分股分钟频率行情数据
+    code_list = exec distinct(con_code) as component from loadTable("dfs://DayKDB","o_tushare_index_weight") 
+                where index_code == idx_code and (trade_date between startDate and endDate)
+    pt = select code, tradeDate, tradeTime, open, high, low, close, long(volume) as volume, double(amount) as amount
+            from loadTable("dfs://MinKDB","Min1K")
+            where (tradeDate between startDate and endDate) and code in code_list;  
+    InsertData(targetDB, targetTB, pt, 1000000);
+    
+}
+
+
+// 配置项
+startDate=2017.01.01
+endDate=2025.04.30
+// dbName = "dfs://DayKDBOfIndex"
+// idx_code = "000852.SH" // 1000
+// tbName = "DayFreq1000"
+// initKBarDataBase(dbName,tbName,false,false)
+// addDayKBarData(idx_code,startDate,endDate,dbName,tbName)
+// idx_code = "000905.SH" // 500
+// tbName = "DayFreq500"
+// initKBarDataBase(dbName,tbName,false,false)
+// addDayKBarData(idx_code,startDate,endDate,dbName,tbName)
+// idx_code = "399300.SZ" // 300
+// tbName = "DayFreq300"
+// initKBarDataBase(dbName,tbName,false,false)
+// addDayKBarData(idx_code,startDate,endDate,dbName,tbName)
+
+dbName = "dfs://MinKDBOfIndex"
+idx_code = "000852.SH" // 1000
+tbName = "MinFreq1000"
+initKBarDataBase(dbName,tbName,false,true)
+addMinKBarData(idx_code,startDate,endDate,dbName,tbName)
+idx_code = "000905.SH" // 500
+tbName = "MinFreq500"
+initKBarDataBase(dbName,tbName,false,true)
+addMinKBarData(idx_code,startDate,endDate,dbName,tbName)
+idx_code = "399300.SZ" // 300
+tbName = "MinFreq300"
+initKBarDataBase(dbName,tbName,false,true)
+addMinKBarData(idx_code,startDate,endDate,dbName,tbName)
